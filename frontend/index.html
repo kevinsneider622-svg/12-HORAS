@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>12 HORAS — Plataforma de Logística</title>
+<link rel="stylesheet" href="styles.css">
+
+<!-- ══════════════════════════════════════════════════════════
+     LOGIN
+════════════════════════════════════════════════════════════ -->
+<div id="loginView" class="view active">
+  <div class="login-card">
+    <div class="login-logo">🚚 12 HORAS 🔥</div>
+    <p class="login-sub">Plataforma de logística y envíos</p>
+
+    <div class="demo-users">
+      <strong>👤 Usuarios de prueba (clave: Admin123)</strong>
+      <div>
+        <span class="demo-pill" onclick="fillLogin('admin@logistica.co')">Admin</span>
+        <span class="demo-pill" onclick="fillLogin('carlos@logistica.co')">Carlos (Transportador)</span>
+        <span class="demo-pill" onclick="fillLogin('ana@logistica.co')">Ana (Transportadora)</span>
+        <span class="demo-pill" onclick="fillLogin('tienda@cliente.co')">Tienda (Cliente)</span>
+        <span class="demo-pill" onclick="fillLogin('tienda2@cliente.co')">Tienda Doña Martha (Cliente)</span>
+      </div>
+    </div>
+
+    <div id="loginError" class="alert alert-error" style="display:none"></div>
+
+    <div class="form-field" style="margin-bottom:.75rem">
+      <label>Email</label>
+      <input type="email" id="loginEmail" placeholder="usuario@ejemplo.com">
+    </div>
+    <div class="form-field" style="margin-bottom:1.25rem">
+      <label>Contraseña</label>
+      <input type="password" id="loginPass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="doLogin()" id="loginBtn">
+      Ingresar
+    </button>
+
+    <div style="text-align:center;margin-top:1.25rem;font-size:.8rem;color:var(--muted)">
+      ¿Consultar envío sin cuenta? 
+      <a href="tracking.html" style="color:var(--brand);font-weight:600">Rastrear paquete →</a>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     APP SHELL
+════════════════════════════════════════════════════════════ -->
+<div id="appView" class="view">
+  <header>
+    <div class="header-logo">🚚 12 HORAS</div>
+    <div class="header-right">
+      <button class="notif-btn" onclick="toggleNotifPanel()" title="Notificaciones">
+        🔔
+        <span class="notif-badge hidden" id="notifBadge">0</span>
+      </button>
+      <div class="user-badge">
+        <span id="headerUserName">—</span>
+        <span class="role-tag" id="headerRoleTag"></span>
+      </div>
+      <button class="btn btn-sm btn-secondary" onclick="logout()">Salir</button>
+    </div>
+  </header>
+
+  <!-- Notif Panel -->
+  <div class="notif-panel" id="notifPanel">
+    <div style="padding:.75rem 1rem;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)">
+      <strong style="font-size:.875rem">Notificaciones</strong>
+      <button class="btn btn-sm btn-secondary" onclick="marcarTodasLeidas()">Marcar leídas</button>
+    </div>
+    <div id="notifList"><div class="empty"><div class="empty-icon">🔔</div>Sin notificaciones</div></div>
+  </div>
+
+  <div class="app-body">
+    <nav id="sidebar"></nav>
+    <main id="mainContent">
+      <div class="empty"><div class="empty-icon">📦</div>Selecciona una opción del menú</div>
+    </main>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     MODALS
+════════════════════════════════════════════════════════════ -->
+<!-- Modal: Detalle / Trazabilidad -->
+<div class="modal-overlay" id="modalDetalle">
+  <div class="modal">
+    <div class="modal-title">
+      <span id="modalDetalleTitle">Detalle del envío</span>
+      <button class="modal-close" onclick="closeModal('modalDetalle')">✕</button>
+    </div>
+    <div id="modalDetalleContent"></div>
+  </div>
+</div>
+
+<!-- Modal: Cambiar estado -->
+<div class="modal-overlay" id="modalEstado">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-title">
+      Actualizar estado
+      <button class="modal-close" onclick="closeModal('modalEstado')">✕</button>
+    </div>
+    <input type="hidden" id="estadoEnvioId">
+    <div class="form-field" style="margin-bottom:.75rem">
+      <label>Nuevo estado</label>
+      <select id="estadoSelect"></select>
+    </div>
+    <div class="form-field" style="margin-bottom:1.25rem">
+      <label>Comentario (opcional)</label>
+      <textarea id="estadoComentario" rows="2" placeholder="Ej: Entregado a portería..."></textarea>
+    </div>
+    <div style="display:flex;gap:.5rem;justify-content:flex-end">
+      <button class="btn btn-secondary" onclick="closeModal('modalEstado')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarEstado()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Asignar transportador -->
+<div class="modal-overlay" id="modalAsignar">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-title">
+      Asignar transportador
+      <button class="modal-close" onclick="closeModal('modalAsignar')">✕</button>
+    </div>
+    <input type="hidden" id="asignarEnvioId">
+    <div class="form-field" style="margin-bottom:1.25rem">
+      <label>Transportador</label>
+      <select id="asignarSelect"></select>
+    </div>
+    <div style="display:flex;gap:.5rem;justify-content:flex-end">
+      <button class="btn btn-secondary" onclick="closeModal('modalAsignar')">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarAsignar()">Asignar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Crear usuario (admin) -->
+<div class="modal-overlay" id="modalUsuario">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-title">
+      Crear usuario
+      <button class="modal-close" onclick="closeModal('modalUsuario')">✕</button>
+    </div>
+    <div id="usuarioError" class="alert alert-error" style="display:none"></div>
+    <div class="form-grid">
+      <div class="form-field full">
+        <label>Nombre completo</label>
+        <input type="text" id="uNombre">
+      </div>
+      <div class="form-field">
+        <label>Email</label>
+        <input type="email" id="uEmail">
+      </div>
+      <div class="form-field">
+        <label>Contraseña</label>
+        <input type="password" id="uPass">
+      </div>
+      <div class="form-field full">
+        <label>Rol</label>
+        <select id="uRol">
+          <option value="cliente">Cliente</option>
+          <option value="transportador">Transportador</option>
+          <option value="admin">Administrador</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem">
+      <button class="btn btn-secondary" onclick="closeModal('modalUsuario')">Cancelar</button>
+      <button class="btn btn-primary" onclick="crearUsuario()">Crear usuario</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ════════════════════════════════════════════════════════════
+   CONFIG
+════════════════════════════════════════════════════════════ */
+const API = 'http://localhost:3001/api';
+let currentUser = null;
+let notifInterval = null;
+
+/* ════════════════════════════════════════════════════════════
+   AUTH HELPERS
+════════════════════════════════════════════════════════════ */
+function getToken() { return localStorage.getItem('lt_token'); }
+function setToken(t) { localStorage.setItem('lt_token', t); }
+function clearToken() { localStorage.removeItem('lt_token'); }
+
+function authHeaders() {
+  return { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' };
+}
+
+async function apiGet(path) {
+  const r = await fetch(API + path, { headers: authHeaders() });
+  if (!r.ok) { const e = await r.json().catch(()=>({})); throw new Error(e.error || r.statusText); }
+  return r.json();
+}
+
+async function apiPost(path, body) {
+  const r = await fetch(API + path, { method:'POST', headers: authHeaders(), body: JSON.stringify(body) });
+  if (!r.ok) { const e = await r.json().catch(()=>({})); throw new Error(e.error || r.statusText); }
+  return r.json();
+}
+
+async function apiPatch(path, body) {
+  const r = await fetch(API + path, { method:'PATCH', headers: authHeaders(), body: JSON.stringify(body) });
+  if (!r.ok) { const e = await r.json().catch(()=>({})); throw new Error(e.error || r.statusText); }
+  return r.json();
+}
+
+/* ════════════════════════════════════════════════════════════
+   LOGIN
+════════════════════════════════════════════════════════════ */
+function fillLogin(email) {
+  const emailEl = document.getElementById('loginEmail');
+  const passEl  = document.getElementById('loginPass');
+  emailEl.value = email;
+  passEl.value  = 'Admin123';
+  emailEl.dispatchEvent(new Event('input'));
+  passEl.dispatchEvent(new Event('input'));
+}
+
+async function doLogin() {
+  const email    = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPass').value;
+  const errEl    = document.getElementById('loginError');
+  const btn      = document.getElementById('loginBtn');
+
+  errEl.style.display = 'none';
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Ingresando…';
+
+  try {
+    const data = await fetch(API + '/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    const res = await data.json();
+    if (!data.ok) throw new Error(res.error || 'Error de acceso');
+
+    setToken(res.token);
+    currentUser = res.user;
+    initApp();
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Ingresar';
+  }
+}
+
+function logout() {
+  clearToken();
+  currentUser = null;
+  clearInterval(notifInterval);
+  showView('loginView');
+  document.getElementById('notifPanel').classList.remove('open');
+}
+
+/* ════════════════════════════════════════════════════════════
+   APP INIT
+════════════════════════════════════════════════════════════ */
+function showView(id) {
+  document.querySelectorAll('.view').forEach(v => {
+    v.classList.remove('active');
+    v.style.display = 'none';
+  });
+  const el = document.getElementById(id);
+  el.style.display = '';
+  el.classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+async function initApp() {
+  showView('appView');
+  document.getElementById('headerUserName').textContent = currentUser.nombre;
+  const rt = document.getElementById('headerRoleTag');
+  rt.textContent  = { cliente:'Cliente', admin:'Administrador', transportador:'Transportador' }[currentUser.rol];
+  rt.className    = `role-tag ${currentUser.rol}`;
+
+  buildSidebar();
+  loadNotifs();
+  notifInterval = setInterval(loadNotifs, 30000);
+
+  // Navegar al primer ítem del menú
+  const firstNav = document.querySelector('.nav-item[data-page]');
+  if (firstNav) firstNav.click();
+}
+
+/* Auto-login si hay token guardado */
+(async () => {
+  const t = getToken();
+  if (t) {
+    try {
+      const r = await fetch(API + '/auth/me', { headers: { 'Authorization': `Bearer ${t}` } });
+      if (r.ok) {
+        currentUser = await r.json();
+        initApp();
+        return;
+      }
+    } catch {}
+    clearToken();
+  }
+})();
+
+/* ════════════════════════════════════════════════════════════
+   SIDEBAR
+════════════════════════════════════════════════════════════ */
+const MENU_CONFIG = {
+  cliente: [
+    { icon:'📦', label:'Mis envíos',       page:'bandeja' },
+    { icon:'➕', label:'Nuevo envío',       page:'nuevo-envio' },
+    { icon:'🔍', label:'Rastrear paquete',  page:'rastrear' },
+  ],
+  admin: [
+    { icon:'📊', label:'Dashboard',         page:'dashboard' },
+    { icon:'📬', label:'Todos los envíos',  page:'bandeja' },
+    { icon:'🚚', label:'Transportadores',   page:'transportadores' },
+    { icon:'👥', label:'Usuarios',          page:'usuarios' },
+    { icon:'📥', label:'Exportar Excel',    page:'exportar' },
+  ],
+  transportador: [
+    { icon:'📬', label:'Mis asignados',     page:'bandeja' },
+    { icon:'🔍', label:'Rastrear paquete',  page:'rastrear' },
+  ]
+};
+
+function buildSidebar() {
+  const items = MENU_CONFIG[currentUser.rol] || [];
+  document.getElementById('sidebar').innerHTML = `
+    <div class="nav-section">${currentUser.rol.toUpperCase()}</div>
+    ${items.map(i => `
+      <div class="nav-item" data-page="${i.page}" onclick="navigate('${i.page}',this)">
+        <span class="nav-icon">${i.icon}</span> ${i.label}
+      </div>`).join('')}
+  `;
+}
+
+function navigate(page, el) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  if (el) el.classList.add('active');
+  const pages = {
+    dashboard:       renderDashboard,
+    bandeja:         renderBandeja,
+    'nuevo-envio':   renderNuevoEnvio,
+    rastrear:        renderRastrear,
+    transportadores: renderTransportadores,
+    usuarios:        renderUsuarios,
+    exportar:        doExport,
+  };
+  if (pages[page]) pages[page]();
+}
+
+function setMain(html) {
+  document.getElementById('mainContent').innerHTML = html;
+}
+
+/* ════════════════════════════════════════════════════════════
+   NOTIFICACIONES
+════════════════════════════════════════════════════════════ */
+async function loadNotifs() {
+  try {
+    const [notifs, count] = await Promise.all([
+      apiGet('/notificaciones'),
+      apiGet('/notificaciones/count')
+    ]);
+    const badge = document.getElementById('notifBadge');
+    if (count.sin_leer > 0) {
+      badge.textContent = count.sin_leer > 9 ? '9+' : count.sin_leer;
+      badge.classList.remove('hidden');
+    } else { badge.classList.add('hidden'); }
+
+    document.getElementById('notifList').innerHTML = notifs.length ? notifs.map(n => `
+      <div class="notif-item ${n.leida ? '' : 'unread'}">
+        <div>${n.mensaje}</div>
+        ${n.codigo_seguimiento ? `<div style="font-size:.75rem;color:var(--brand);font-weight:600">Código: ${n.codigo_seguimiento}</div>` : ''}
+        <div class="notif-time">${formatDate(n.creada_en)}</div>
+      </div>`).join('') :
+      '<div class="empty" style="padding:2rem"><div class="empty-icon">🔔</div>Sin notificaciones</div>';
+  } catch {}
+}
+
+function toggleNotifPanel() {
+  const p = document.getElementById('notifPanel');
+  p.classList.toggle('open');
+  if (p.classList.contains('open')) loadNotifs();
+}
+
+async function marcarTodasLeidas() {
+  try { await apiPatch('/notificaciones/leer-todas'); loadNotifs(); } catch {}
+}
+
+/* ════════════════════════════════════════════════════════════
+   DASHBOARD (Admin)
+════════════════════════════════════════════════════════════ */
+async function renderDashboard() {
+  setMain('<div class="page-title">📊 Dashboard</div><div style="color:var(--muted)">Cargando…</div>');
+  try {
+    const envios = await apiGet('/envios');
+    const hoy = new Date();
+
+    // Fechas por defecto: primer día del mes actual hasta hoy
+    const primerDia = new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString().slice(0,10);
+    const hoyStr    = hoy.toISOString().slice(0,10);
+
+    renderDashboardConFiltro(envios, primerDia, hoyStr);
+  } catch (e) { setMain(`<div class="alert alert-error">${e.message}</div>`); }
+}
+
+function renderDashboardConFiltro(todosEnvios, desde, hasta) {
+  // Filtrar por rango de fechas para las estadísticas
+  const enviosFiltrados = todosEnvios.filter(e => {
+    const fecha = new Date(e.creado_en).toISOString().slice(0,10);
+    return fecha >= desde && fecha <= hasta;
+  });
+
+  const total     = enviosFiltrados.length;
+  const recibidos = enviosFiltrados.filter(e => e.estado === 'Recibido' || e.estado === 'Registrado').length;
+  const transito  = enviosFiltrados.filter(e => e.estado === 'En Tránsito').length;
+  const entreg    = enviosFiltrados.filter(e => e.estado === 'Entregado').length;
+  const devol     = enviosFiltrados.filter(e => e.estado === 'Devolución').length;
+  const ingresos  = total * 10000;
+
+  // Últimos envíos: excluir entregados hace más de 3 días, dentro del rango
+  const hace3dias = new Date();
+  hace3dias.setDate(hace3dias.getDate() - 3);
+
+  const ultimosEnvios = enviosFiltrados.filter(e => {
+    if (e.estado === 'Entregado') {
+      return new Date(e.actualizado_en) >= hace3dias;
+    }
+    return true;
+  }).slice(0, 8);
+
+  setMain(`
+    <div class="page-title">📊 Dashboard</div>
+
+    <!-- Filtro de fechas -->
+    <div class="card" style="margin-bottom:1rem">
+      <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+        <span style="font-size:.875rem;font-weight:600;color:var(--muted)">📅 Filtrar por fecha:</span>
+        <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+          <label style="font-size:.8rem;color:var(--muted)">Desde</label>
+          <input type="date" id="dashDesde" value="${desde}" style="width:auto;padding:.35rem .6rem;font-size:.85rem">
+          <label style="font-size:.8rem;color:var(--muted)">Hasta</label>
+          <input type="date" id="dashHasta" value="${hasta}" style="width:auto;padding:.35rem .6rem;font-size:.85rem">
+          <button class="btn btn-primary btn-sm" onclick="aplicarFiltroDashboard()">Aplicar</button>
+          <button class="btn btn-secondary btn-sm" onclick="exportarExcelFiltrado('dashboard')">📥 Exportar</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-icon">📦</div><div class="stat-label">Total envíos</div><div class="stat-value">${total}</div></div>
+      <div class="stat-card"><div class="stat-icon">🟡</div><div class="stat-label">Pendientes</div><div class="stat-value" style="color:var(--warning)">${recibidos}</div></div>
+      <div class="stat-card"><div class="stat-icon">🚚</div><div class="stat-label">En Tránsito</div><div class="stat-value" style="color:var(--info)">${transito}</div></div>
+      <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-label">Entregados</div><div class="stat-value" style="color:var(--success)">${entreg}</div></div>
+      <div class="stat-card"><div class="stat-icon">↩️</div><div class="stat-label">Devoluciones</div><div class="stat-value" style="color:var(--danger)">${devol}</div></div>
+      <div class="stat-card"><div class="stat-icon">💰</div><div class="stat-label">Ingresos del período</div><div class="stat-value" style="color:var(--brand);font-size:1.3rem">$${ingresos.toLocaleString('es-CO')}</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">📬 Últimos envíos <span style="font-size:.75rem;color:var(--muted);font-weight:400">(entregados desaparecen tras 3 días)</span></span>
+        <button class="btn btn-primary btn-sm" onclick="navigate('bandeja')">Ver todos</button>
+      </div>
+      <div class="table-wrap">
+        ${ultimosEnvios.length ? renderTablaEnvios(ultimosEnvios, 'admin') :
+          '<div class="empty"><div class="empty-icon">📭</div>No hay envíos en este período</div>'}
+      </div>
+    </div>
+  `);
+
+  // Guardar envíos en variable global para exportar
+  window._dashEnviosFiltrados = enviosFiltrados;
+}
+
+async function aplicarFiltroDashboard() {
+  const desde = document.getElementById('dashDesde').value;
+  const hasta = document.getElementById('dashHasta').value;
+  if (!desde || !hasta) return showToast('⚠️ Selecciona ambas fechas');
+  const envios = await apiGet('/envios');
+  renderDashboardConFiltro(envios, desde, hasta);
+}
+
+/* ════════════════════════════════════════════════════════════
+   BANDEJA
+════════════════════════════════════════════════════════════ */
+async function renderBandeja() {
+  setMain('<div class="page-title">📬 Bandeja de envíos</div><div style="color:var(--muted)">Cargando…</div>');
+  try {
+    const envios = await apiGet('/envios');
+    const titulo = { cliente:'Mis envíos', admin:'Todos los envíos', transportador:'Mis asignados' }[currentUser.rol];
+
+    setMain(`
+      <div class="page-title">📬 ${titulo}</div>
+      ${currentUser.rol === 'cliente' ? `<div class="card" style="margin-bottom:1rem;background:var(--brand-soft);border:1px solid #F3C9B8">
+        <p style="font-size:.875rem;color:#7A3010">💡 Tarifa fija por envío: <strong>$10.000 COP</strong></p>
+      </div>` : ''}
+      <div class="card">
+        <div class="table-wrap">
+          ${envios.length ? renderTablaEnvios(envios, currentUser.rol) : 
+            '<div class="empty"><div class="empty-icon">📭</div>No hay envíos aún</div>'}
+        </div>
+      </div>
+    `);
+  } catch (e) { setMain(`<div class="alert alert-error">${e.message}</div>`); }
+}
+
+function renderTablaEnvios(envios, rol) {
+  const cols = {
+    cliente:       ['Código',      'Destino',       'Ciudad',        'Estado',       'Fecha',    'Acciones'],
+    admin:         ['Código',      'Cliente',        'Destino',       'Transportador','Estado',   'Acciones'],
+    transportador: ['Código',      'Destino',        'Ciudad',        'Estado',       'Fecha',    'Acciones'],
+  }[rol];
+
+  return `<table>
+    <thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
+    <tbody>
+      ${envios.map(e => `
+        <tr>
+          <td><code style="font-size:.8rem;background:var(--bg);padding:.1rem .35rem;border-radius:4px">${e.codigo_seguimiento}</code></td>
+          ${rol === 'admin' ? `<td>${e.cliente_nombre || '—'}</td>` : ''}
+          <td>${e.destinatario_nombre}</td>
+          ${rol === 'admin'         ? `<td>${e.transportador_nombre || '<span style="color:var(--muted)">Sin asignar</span>'}</td>` : ''}
+          ${rol !== 'admin'         ? `<td>${e.ciudad_entrega}</td>` : ''}
+          <td>${badgeEstado(e.estado)}</td>
+          ${rol !== 'admin'         ? `<td>${formatDate(e.creado_en)}</td>` : ''}
+          <td>
+            <button class="btn btn-sm btn-outline" onclick="verDetalle(${e.id})">Ver</button>
+            ${(rol === 'admin' || rol === 'transportador') ? 
+              `<button class="btn btn-sm btn-primary" style="margin-left:.3rem" onclick="abrirModalEstado(${e.id},'${e.estado}')">Estado</button>` : ''}
+            ${rol === 'admin' ? 
+              `<button class="btn btn-sm btn-secondary" style="margin-left:.3rem" onclick="abrirModalAsignar(${e.id})">Asignar</button>` : ''}
+          </td>
+        </tr>`).join('')}
+    </tbody>
+  </table>`;
+}
+
+/* ════════════════════════════════════════════════════════════
+   DETALLE / TRAZABILIDAD
+════════════════════════════════════════════════════════════ */
+async function verDetalle(id) {
+  document.getElementById('modalDetalleContent').innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted)">Cargando…</div>';
+  openModal('modalDetalle');
+  try {
+    const e = await apiGet(`/envios/${id}`);
+    document.getElementById('modalDetalleTitle').textContent = `Envío ${e.codigo_seguimiento}`;
+    document.getElementById('modalDetalleContent').innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1.25rem;font-size:.875rem">
+        <div><div style="font-size:.72rem;color:var(--muted);margin-bottom:.15rem">ESTADO ACTUAL</div>${badgeEstado(e.estado)}</div>
+        <div><div style="font-size:.72rem;color:var(--muted);margin-bottom:.15rem">TARIFA</div><strong>$10.000 COP</strong></div>
+        <div><div style="font-size:.72rem;color:var(--muted);margin-bottom:.15rem">DESTINATARIO</div><strong>${e.destinatario_nombre}</strong></div>
+        <div><div style="font-size:.72rem;color:var(--muted);margin-bottom:.15rem">TELÉFONO</div>${e.destinatario_tel}</div>
+        <div class="${e.descripcion_paquete ? '' : 'hidden'}" style="grid-column:1/-1">
+          <div style="font-size:.72rem;color:var(--muted);margin-bottom:.15rem">DESCRIPCIÓN</div>${e.descripcion_paquete || ''}
+        </div>
+        <div style="grid-column:1/-1"><div style="font-size:.72rem;color:var(--muted);margin-bottom:.15rem">DIRECCIÓN DE ENTREGA</div>${e.direccion_entrega}, ${e.ciudad_entrega}</div>
+        ${e.transportador_nombre ? `<div style="grid-column:1/-1"><div style="font-size:.72rem;color:var(--muted);margin-bottom:.15rem">TRANSPORTADOR</div>${e.transportador_nombre}</div>` : ''}
+      </div>
+      <div style="font-size:.875rem;font-weight:700;margin-bottom:.75rem;border-top:1px solid var(--border);padding-top:.75rem">🗓️ Historial de estados</div>
+      <div class="timeline">
+        ${(e.historial || []).map((h,i) => `
+          <div class="tl-item">
+            <div class="tl-dot">${i+1}</div>
+            <div class="tl-body">
+              <div class="tl-estado">${h.estado}</div>
+              <div class="tl-meta">${formatDate(h.registrado_en)} · ${h.actor_nombre} (${h.actor_rol})</div>
+              ${h.comentario ? `<div class="tl-comment">${h.comentario}</div>` : ''}
+            </div>
+          </div>`).join('')}
+      </div>
+    `;
+  } catch (e) {
+    document.getElementById('modalDetalleContent').innerHTML = `<div class="alert alert-error">${e.message}</div>`;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════
+   CAMBIAR ESTADO
+════════════════════════════════════════════════════════════ */
+const ESTADOS = {
+  admin:         ['Recibido','En Tránsito','Entregado','Devolución','Reprogramado'],
+  transportador: ['En Tránsito','Entregado','Devolución','Reprogramado'],
+};
+
+function abrirModalEstado(envioId, estadoActual) {
+  document.getElementById('estadoEnvioId').value = envioId;
+  const estados = ESTADOS[currentUser.rol] || [];
+  document.getElementById('estadoSelect').innerHTML = estados.map(s =>
+    `<option value="${s}" ${s===estadoActual?'selected':''}>${s}</option>`
+  ).join('');
+  document.getElementById('estadoComentario').value = '';
+  openModal('modalEstado');
+}
+
+async function guardarEstado() {
+  const id         = document.getElementById('estadoEnvioId').value;
+  const estado     = document.getElementById('estadoSelect').value;
+  const comentario = document.getElementById('estadoComentario').value;
+  try {
+    await apiPatch(`/envios/${id}/estado`, { estado, comentario });
+    closeModal('modalEstado');
+    renderBandeja();
+    loadNotifs();
+    showToast('Estado actualizado correctamente ✅');
+  } catch (e) { alert(e.message); }
+}
+
+/* ════════════════════════════════════════════════════════════
+   ASIGNAR TRANSPORTADOR
+════════════════════════════════════════════════════════════ */
+async function abrirModalAsignar(envioId) {
+  document.getElementById('asignarEnvioId').value = envioId;
+  const transp = await apiGet('/usuarios/transportadores');
+  document.getElementById('asignarSelect').innerHTML = transp.map(t =>
+    `<option value="${t.id}">${t.nombre}</option>`
+  ).join('');
+  openModal('modalAsignar');
+}
+
+async function confirmarAsignar() {
+  const id             = document.getElementById('asignarEnvioId').value;
+  const transportadorId = document.getElementById('asignarSelect').value;
+  try {
+    await apiPatch(`/envios/${id}/asignar`, { transportador_id: parseInt(transportadorId) });
+    closeModal('modalAsignar');
+    renderBandeja();
+    loadNotifs();
+    showToast('Envío asignado correctamente 🚚');
+  } catch (e) { alert(e.message); }
+}
+
+/* ════════════════════════════════════════════════════════════
+   NUEVO ENVÍO (Cliente / Admin)
+════════════════════════════════════════════════════════════ */
+let pkgCount = 1;
+
+function renderNuevoEnvio() {
+  pkgCount = 1;
+  setMain(`
+    <div class="page-title">➕ Nuevo envío</div>
+    <div class="card" style="margin-bottom:1rem;background:var(--brand-soft);border:1px solid #F3C9B8">
+      <p style="font-size:.875rem;color:#7A3010">💰 Tarifa fija por envío: <strong>$10.000 COP</strong>. Puedes añadir múltiples destinos.</p>
+    </div>
+    <div id="alertNuevo"></div>
+    <div id="pkgsContainer">
+      ${renderPkgForm(1)}
+    </div>
+    <div style="display:flex;gap:.75rem;margin-top:1rem;flex-wrap:wrap">
+      <button class="btn btn-secondary" onclick="addPkg()">➕ Agregar otro destino</button>
+      <button class="btn btn-primary" onclick="submitNuevoEnvio()">📦 Crear envío(s)</button>
+    </div>
+    <div style="margin-top:1rem;padding:.75rem;background:var(--bg);border-radius:var(--radius);font-size:.8rem;color:var(--muted)">
+      💡 Total estimado: <strong id="totalEstimado">$10.000 COP</strong>
+    </div>
+  `);
+}
+
+function renderPkgForm(n) {
+  return `
+    <div class="pkg-row" id="pkg${n}">
+      <span class="pkg-row-num">Destino ${n}</span>
+      ${n > 1 ? `<button class="btn btn-sm btn-danger" style="float:right;margin-top:-.25rem" onclick="removePkg(${n})">✕ Quitar</button>` : ''}
+      <div class="form-grid" style="margin-top:.5rem">
+        <div class="form-field">
+          <label>Nombre del destinatario *</label>
+          <input type="text" id="pkg${n}_nombre" placeholder="">
+        </div>
+        <div class="form-field">
+          <label>Teléfono *</label>
+          <input type="tel" id="pkg${n}_tel" placeholder="">
+        </div>
+        <div class="form-field full">
+          <label>Dirección de entrega *</label>
+          <input type="text" id="pkg${n}_dir" placeholder="">
+        </div>
+        <div class="form-field">
+          <label>Ciudad *</label>
+          <input type="text" id="pkg${n}_ciudad" placeholder="">
+        </div>
+        <div class="form-field">
+          <label>Peso aprox. (kg)</label>
+          <input type="number" step=".1" id="pkg${n}_peso" placeholder="">
+        </div>
+        <div class="form-field full">
+          <label>Descripción del paquete</label>
+          <textarea id="pkg${n}_desc" rows="2" placeholder=""></textarea>
+        </div>
+      </div>
+    </div>`;
+}
+
+function addPkg() {
+  pkgCount++;
+  document.getElementById('pkgsContainer').insertAdjacentHTML('beforeend', renderPkgForm(pkgCount));
+  document.getElementById('totalEstimado').textContent = `$${(pkgCount * 10000).toLocaleString('es-CO')} COP`;
+}
+
+function removePkg(n) {
+  document.getElementById(`pkg${n}`)?.remove();
+  pkgCount = Math.max(1, pkgCount - 1);
+  document.getElementById('totalEstimado').textContent = `$${(document.querySelectorAll('.pkg-row').length * 10000).toLocaleString('es-CO')} COP`;
+}
+
+async function submitNuevoEnvio() {
+  const alert = document.getElementById('alertNuevo');
+  alert.innerHTML = '';
+  const rows = document.querySelectorAll('.pkg-row');
+  const envios = [];
+
+  for (const row of rows) {
+    const n = row.id.replace('pkg','');
+    const nombre = document.getElementById(`pkg${n}_nombre`)?.value.trim();
+    const tel    = document.getElementById(`pkg${n}_tel`)?.value.trim();
+    const dir    = document.getElementById(`pkg${n}_dir`)?.value.trim();
+    const ciudad = document.getElementById(`pkg${n}_ciudad`)?.value.trim();
+    const peso   = document.getElementById(`pkg${n}_peso`)?.value;
+    const desc   = document.getElementById(`pkg${n}_desc`)?.value.trim();
+
+    if (!nombre || !tel || !dir || !ciudad) {
+      alert.innerHTML = `<div class="alert alert-error">Completa todos los campos obligatorios del destino ${n}</div>`;
+      return;
+    }
+    envios.push({ destinatario_nombre:nombre, destinatario_tel:tel, direccion_entrega:dir, ciudad_entrega:ciudad, peso_kg:peso||null, descripcion_paquete:desc||null });
+  }
+
+  try {
+    const res = await apiPost('/envios', { envios });
+    alert.innerHTML = `<div class="alert alert-success">✅ ${res.mensaje}<br>${res.envios.map(e=>`<strong>${e.codigo_seguimiento}</strong>`).join(', ')}</div>`;
+    loadNotifs();
+    setTimeout(() => renderBandeja(), 2500);
+  } catch (e) {
+    alert.innerHTML = `<div class="alert alert-error">❌ ${e.message}</div>`;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════
+   RASTREAR (público-ish)
+════════════════════════════════════════════════════════════ */
+function renderRastrear() {
+  setMain(`
+    <div class="page-title">🔍 Rastrear paquete</div>
+    <div class="card" style="max-width:500px">
+      <div class="form-field" style="margin-bottom:.75rem">
+        <label>Código de seguimiento</label>
+        <input type="text" id="codigoRastrear" placeholder="ENV-2024-XXXXX" oninput="this.value=this.value.toUpperCase()">
+      </div>
+      <button class="btn btn-primary" onclick="doRastrear()">Rastrear</button>
+    </div>
+    <div id="rastrearResult" style="margin-top:1rem;max-width:560px"></div>
+  `);
+}
+
+async function doRastrear() {
+  const codigo = document.getElementById('codigoRastrear').value.trim();
+  const res    = document.getElementById('rastrearResult');
+  if (!codigo) return;
+  res.innerHTML = '<div style="color:var(--muted)">Buscando…</div>';
+  try {
+    const data = await fetch(`${API}/envios/seguimiento/${codigo}`).then(r=>r.json());
+    if (data.error) throw new Error(data.error);
+
+    res.innerHTML = `
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+          <div>
+            <div style="font-size:.72rem;color:var(--muted)">CÓDIGO</div>
+            <div style="font-weight:800;font-size:1.1rem">${data.codigo_seguimiento}</div>
+          </div>
+          ${badgeEstado(data.estado)}
+        </div>
+        <div style="font-size:.875rem;margin-bottom:1rem">
+          <strong>Para:</strong> ${data.destinatario_nombre}<br>
+          <strong>Dirección:</strong> ${data.direccion_entrega}, ${data.ciudad_entrega}
+          ${data.transportador_nombre ? `<br><strong>Transportador:</strong> ${data.transportador_nombre}` : ''}
+        </div>
+        <div style="font-weight:700;font-size:.875rem;margin-bottom:.75rem;border-top:1px solid var(--border);padding-top:.75rem">🗓️ Historial</div>
+        <div class="timeline">
+          ${(data.historial||[]).map((h,i) => `
+            <div class="tl-item">
+              <div class="tl-dot">${i+1}</div>
+              <div class="tl-body">
+                <div class="tl-estado">${h.estado}</div>
+                <div class="tl-meta">${formatDate(h.registrado_en)} · ${h.actor}</div>
+                ${h.comentario ? `<div class="tl-comment">${h.comentario}</div>` : ''}
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>`;
+  } catch (e) {
+    res.innerHTML = `<div class="alert alert-error">❌ ${e.message}</div>`;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════
+   TRANSPORTADORES (Admin)
+════════════════════════════════════════════════════════════ */
+async function renderTransportadores() {
+  setMain('<div class="page-title">🚚 Transportadores</div><div style="color:var(--muted)">Cargando…</div>');
+  try {
+    const [transp, envios] = await Promise.all([
+      apiGet('/usuarios/transportadores'),
+      apiGet('/envios')
+    ]);
+
+    const stats = {};
+    transp.forEach(t => stats[t.id] = { total:0, transito:0, entregados:0 });
+    envios.forEach(e => {
+      if (e.transportador_id && stats[e.transportador_id]) {
+        stats[e.transportador_id].total++;
+        if (e.estado === 'En Tránsito')  stats[e.transportador_id].transito++;
+        if (e.estado === 'Entregado')    stats[e.transportador_id].entregados++;
+      }
+    });
+
+    setMain(`
+      <div class="page-title">🚚 Transportadores</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem">
+        ${transp.map(t => `
+          <div class="card">
+            <div style="font-weight:800;margin-bottom:.25rem">${t.nombre}</div>
+            <div style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem">${t.email}</div>
+            <div style="display:flex;gap:.5rem;font-size:.8rem">
+              <span style="background:var(--bg);border-radius:20px;padding:.2rem .6rem">📦 ${stats[t.id]?.total||0} asignados</span>
+              <span style="background:#FEF3C7;border-radius:20px;padding:.2rem .6rem">🚚 ${stats[t.id]?.transito||0} en ruta</span>
+              <span style="background:#D1FAE5;border-radius:20px;padding:.2rem .6rem">✅ ${stats[t.id]?.entregados||0}</span>
+            </div>
+          </div>`).join('')}
+      </div>
+    `);
+  } catch (e) { setMain(`<div class="alert alert-error">${e.message}</div>`); }
+}
+
+/* ════════════════════════════════════════════════════════════
+   GESTIÓN DE USUARIOS (Admin)
+════════════════════════════════════════════════════════════ */
+async function renderUsuarios() {
+  setMain('<div class="page-title">👥 Usuarios</div><div style="color:var(--muted)">Cargando…</div>');
+  try {
+    const usuarios = await apiGet('/usuarios');
+    setMain(`
+      <div class="page-title" style="justify-content:space-between">
+        👥 Usuarios
+        <button class="btn btn-primary" onclick="openModal('modalUsuario')">+ Crear usuario</button>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Estado</th><th>Registrado</th></tr></thead>
+            <tbody>
+              ${usuarios.map(u => `
+                <tr>
+                  <td>${u.nombre}</td>
+                  <td style="font-size:.82rem">${u.email}</td>
+                  <td><span class="role-tag ${u.rol}">${u.rol}</span></td>
+                  <td><span style="color:${u.activo?'var(--success)':'var(--danger)'};font-size:.8rem;font-weight:600">${u.activo?'Activo':'Inactivo'}</span></td>
+                  <td style="font-size:.8rem;color:var(--muted)">${formatDate(u.creado_en)}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `);
+  } catch (e) { setMain(`<div class="alert alert-error">${e.message}</div>`); }
+}
+
+async function crearUsuario() {
+  const err = document.getElementById('usuarioError');
+  err.style.display = 'none';
+  try {
+    await apiPost('/usuarios', {
+      nombre:   document.getElementById('uNombre').value.trim(),
+      email:    document.getElementById('uEmail').value.trim(),
+      password: document.getElementById('uPass').value,
+      rol:      document.getElementById('uRol').value,
+    });
+    closeModal('modalUsuario');
+    renderUsuarios();
+    showToast('Usuario creado correctamente ✅');
+  } catch (e) {
+    err.textContent = e.message;
+    err.style.display = 'block';
+  }
+}
+
+/* ════════════════════════════════════════════════════════════
+   EXPORT EXCEL
+════════════════════════════════════════════════════════════ */
+async function doExport() {
+  showToast('⏳ Generando archivo Excel…');
+  try {
+    const r = await fetch(`${API}/envios/export/excel`, { headers: authHeaders() });
+    if (!r.ok) throw new Error('Error al generar Excel');
+    const blob = await r.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `logistica_${new Date().toISOString().slice(0,10)}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('✅ Excel descargado correctamente');
+    // Volver al dashboard
+    navigate('dashboard', document.querySelector('.nav-item[data-page="dashboard"]'));
+  } catch (e) { showToast('❌ ' + e.message); }
+}
+
+/* ════════════════════════════════════════════════════════════
+   HELPERS
+════════════════════════════════════════════════════════════ */
+function badgeEstado(e) {
+  const map = {
+    'Registrado':   'badge-registrado',
+    'Recibido':     'badge-recibido',
+    'En Tránsito':  'badge-transito',
+    'Entregado':    'badge-entregado',
+    'Devolución':   'badge-devolucion',
+    'Reprogramado': 'badge-reprogramado',
+  };
+  return `<span class="badge ${map[e]||''}">${e}</span>`;
+}
+
+function formatDate(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleString('es-CO', { dateStyle:'short', timeStyle:'short' });
+}
+
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// Cerrar modal al hacer clic fuera
+document.querySelectorAll('.modal-overlay').forEach(o =>
+  o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); })
+);
+
+let toastTimer;
+function showToast(msg) {
+  let t = document.getElementById('toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toast';
+    Object.assign(t.style, {
+      position:'fixed', bottom:'1.5rem', left:'50%', transform:'translateX(-50%)',
+      background:'#1A1A1A', color:'#fff', padding:'.65rem 1.25rem', borderRadius:'8px',
+      fontSize:'.875rem', zIndex:'999', boxShadow:'0 4px 12px rgba(0,0,0,.2)', maxWidth:'90vw',
+      textAlign:'center'
+    });
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.opacity = '1';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.style.opacity = '0', 3000);
+}
+</script>
+</body>
+</html>
