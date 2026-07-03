@@ -37,14 +37,16 @@ router.get('/', auth, async (req, res, next) => {
              ORDER BY e.creado_en DESC`;
       params = [id];
     } else if (rol === 'transportador') {
+      // Solo envíos asignados en las últimas 24h (o sin fecha de asignación registrada, por compatibilidad)
       sql = `SELECT e.*, u.nombre AS cliente_nombre
              FROM envios e
              JOIN usuarios u ON e.cliente_id = u.id
              WHERE e.transportador_id = ?
+               AND (e.asignado_en IS NULL OR e.asignado_en >= NOW() - INTERVAL 24 HOUR)
              ORDER BY e.creado_en DESC`;
       params = [id];
     } else {
-      // admin: todos
+      // admin: todos, sin filtro de tiempo
       sql = `SELECT e.*,
                uc.nombre AS cliente_nombre,
                ut.nombre AS transportador_nombre
@@ -74,7 +76,6 @@ router.get('/:id', auth, async (req, res, next) => {
     if (!rows[0]) return res.status(404).json({ error: 'Envío no encontrado' });
 
     const envio = rows[0];
-    // Permiso: cliente sólo ve sus propios
     if (req.user.rol === 'cliente' && envio.cliente_id !== req.user.id)
       return res.status(403).json({ error: 'Sin acceso' });
     if (req.user.rol === 'transportador' && envio.transportador_id !== req.user.id)
@@ -92,7 +93,6 @@ router.get('/:id', auth, async (req, res, next) => {
 });
 
 /* ── GET /api/envios/seguimiento/:codigo ─────────────────────── */
-// Público: cualquiera con el código puede ver trazabilidad básica
 router.get('/seguimiento/:codigo', async (req, res, next) => {
   try {
     const [rows] = await db.query(
@@ -146,13 +146,11 @@ router.post('/', auth, requireRole('cliente','admin'), async (req, res, next) =>
       );
       const envioId = r.insertId;
 
-      // Historial inicial
       await conn.query(
         'INSERT INTO historial_estados (envio_id, usuario_id, estado, comentario) VALUES (?,?,?,?)',
         [envioId, req.user.id, 'Registrado', 'Envío registrado en sistema']
       );
 
-      // Notificar a TODOS los admins
       const [admins] = await conn.query(
         "SELECT id FROM usuarios WHERE rol='admin' AND activo=1"
       );
@@ -183,12 +181,10 @@ router.patch('/:id/estado', auth, requireRole('admin','transportador'), async (r
 
     const { estado, comentario } = req.body;
 
-    // Validar estados permitidos por rol
     const permitidos = req.user.rol === 'admin' ? ESTADOS_ADMIN : ESTADOS_TRANS;
     if (!permitidos.includes(estado))
       return res.status(403).json({ error: `Estado "${estado}" no permitido para tu rol` });
 
-    // Transportador sólo puede actualizar sus propios
     if (req.user.rol === 'transportador' && envio.transportador_id !== req.user.id)
       return res.status(403).json({ error: 'Este envío no te está asignado' });
 
@@ -198,7 +194,6 @@ router.patch('/:id/estado', auth, requireRole('admin','transportador'), async (r
       [envio.id, req.user.id, estado, comentario || null]
     );
 
-    // Notificar al cliente
     await notificar(conn, envio.cliente_id, envio.id,
       `📍 Tu envío ${envio.codigo_seguimiento} cambió a: ${estado}`);
 
@@ -211,6 +206,7 @@ router.patch('/:id/estado', auth, requireRole('admin','transportador'), async (r
 });
 
 /* ── PATCH /api/envios/:id/asignar ─────────────────────────── */
+// Al asignar transportador, el envío pasa automáticamente a "En Tránsito"
 router.patch('/:id/asignar', auth, requireRole('admin'), async (req, res, next) => {
   const conn = await db.getConnection();
   try {
@@ -220,7 +216,6 @@ router.patch('/:id/asignar', auth, requireRole('admin'), async (req, res, next) 
     if (!transportador_id)
       return res.status(400).json({ error: 'transportador_id requerido' });
 
-    // Verificar que el usuario exista y sea transportador
     const [tRows] = await conn.query(
       "SELECT * FROM usuarios WHERE id = ? AND rol = 'transportador' AND activo = 1",
       [transportador_id]
@@ -231,15 +226,30 @@ router.patch('/:id/asignar', auth, requireRole('admin'), async (req, res, next) 
     const envio = envRows[0];
     if (!envio) return res.status(404).json({ error: 'Envío no encontrado' });
 
-    await conn.query('UPDATE envios SET transportador_id = ? WHERE id = ?',
-      [transportador_id, envio.id]);
+    const NUEVO_ESTADO = 'En Tránsito';
+
+    // Asigna transportador + cambia estado + marca fecha de asignación (para la regla de 24h)
+    await conn.query(
+      'UPDATE envios SET transportador_id = ?, estado = ?, asignado_en = NOW() WHERE id = ?',
+      [transportador_id, NUEVO_ESTADO, envio.id]
+    );
+
+    // Registrar el cambio en el historial
+    await conn.query(
+      'INSERT INTO historial_estados (envio_id, usuario_id, estado, comentario) VALUES (?,?,?,?)',
+      [envio.id, req.user.id, NUEVO_ESTADO, `Asignado a ${tRows[0].nombre}`]
+    );
 
     // Notificar al transportador
     await notificar(conn, transportador_id, envio.id,
       `🚚 Se te asignó el envío ${envio.codigo_seguimiento} con destino ${envio.ciudad_entrega}`);
 
+    // Notificar al cliente del cambio automático de estado
+    await notificar(conn, envio.cliente_id, envio.id,
+      `📍 Tu envío ${envio.codigo_seguimiento} cambió a: ${NUEVO_ESTADO}`);
+
     await conn.commit();
-    res.json({ mensaje: `Envío asignado a ${tRows[0].nombre}` });
+    res.json({ mensaje: `Envío asignado a ${tRows[0].nombre} y actualizado a "${NUEVO_ESTADO}"` });
   } catch (e) {
     await conn.rollback();
     next(e);
@@ -273,7 +283,6 @@ router.get('/export/excel', auth, requireRole('admin'), async (req, res, next) =
     const ws = XLSX.utils.json_to_sheet(envios);
     XLSX.utils.book_append_sheet(wb, ws, 'Envíos');
 
-    // Hoja de resumen financiero
     const total   = envios.reduce((s, e) => s + parseFloat(e['Tarifa (COP)'] || 0), 0);
     const summary = [
       { Métrica: 'Total envíos',     Valor: envios.length },

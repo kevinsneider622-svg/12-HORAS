@@ -471,7 +471,127 @@ tr:hover td { background: var(--bg); }
   padding: 2rem;
 }
 
-@media (max-width: 640px) {
-  nav { display: none; }
+/* ══════════════════════════════════════════════════════════════
+   RESPONSIVE 
+══════════════════════════════════════════════════════════════ */
+
+/* ── Tablet (≤ 900px) ─────────────────────────────────────────── */
+@media (max-width: 900px) {
+  nav { width: 180px; }
+  .stats-grid { grid-template-columns: repeat(auto-fit, minmax(130px,1fr)); }
+  main { padding: 1.25rem; }
+}
+
+/* ── Móvil / tablet vertical (≤ 768px) ───────────────────────── */
+@media (max-width: 768px) {
+  html { font-size: 14px; }
+
+  /* Header más compacto */
+  header { padding: 0 1rem; height: 52px; }
+  .header-logo { font-size: 1rem; }
+  .user-badge span:first-child { display: none; } /* oculta el nombre, deja solo el rol-tag */
+
+  /* Sidebar → barra inferior fija */
+  .app-body { flex-direction: column; padding-bottom: 64px; } /* espacio para la barra */
+  nav {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    width: 100%;
+    height: 64px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-around;
+    padding: 0;
+    border-top: 1px solid rgba(255,255,255,.08);
+    z-index: 120;
+    overflow-x: auto;
+  }
+  .nav-section { display: none; } /* el título de sección no cabe en la barra */
+  .nav-item {
+    flex-direction: column;
+    justify-content: center;
+    gap: .15rem;
+    padding: .4rem .5rem;
+    font-size: .65rem;
+    text-align: center;
+    border-left: none;
+    border-top: 3px solid transparent;
+    white-space: nowrap;
+    flex-shrink: 0;
+    min-width: 64px;
+  }
+  .nav-item.active { border-left-color: transparent; border-top-color: var(--brand); }
+  .nav-icon { font-size: 1.15rem; }
+
+  main { padding: 1rem; }
+
+  /* Stats en 2 columnas en vez de romperse en 1 sola muy angosta */
+  .stats-grid { grid-template-columns: repeat(2, 1fr); gap: .75rem; }
+  .stat-value { font-size: 1.4rem; }
+
+  /* Formularios: siempre una columna */
   .form-grid { grid-template-columns: 1fr; }
+
+  /* Modales: casi pantalla completa, más fáciles de usar con el teclado del celular */
+  .modal-overlay { padding: 0; align-items: flex-end; }
+  .modal {
+    max-width: 100%;
+    width: 100%;
+    border-radius: 16px 16px 0 0;
+    max-height: 85vh;
+    padding: 1.25rem;
+  }
+
+  /* Panel de notificaciones a pantalla completa */
+  .notif-panel {
+    width: 100%;
+    top: 52px;
+    max-height: calc(100vh - 52px - 64px);
+  }
+
+  /* Botones: área táctil más grande */
+  .btn { padding: .6rem 1rem; min-height: 40px; }
+  .btn-sm { min-height: 34px; padding: .4rem .8rem; }
+
+  /* Tabla: convertir filas en tarjetas apiladas */
+  table, thead, tbody, th, td, tr { display: block; width: 100%; }
+  thead { display: none; }
+  tr {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: .75rem;
+    padding: .5rem .75rem;
+  }
+  tr:hover td { background: transparent; }
+  td {
+    border-bottom: none;
+    padding: .4rem 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: .5rem;
+    text-align: right;
+  }
+  td::before {
+    content: attr(data-label);
+    font-size: .7rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--muted);
+    font-weight: 700;
+    text-align: left;
+  }
+  td:last-child { justify-content: flex-end; flex-wrap: wrap; }
+
+  .login-card { padding: 1.75rem 1.5rem; margin: 1rem; }
+  .page-title { font-size: 1.1rem; }
+}
+
+/* ── Móvil pequeño (≤ 420px) ─────────────────────────────────── */
+@media (max-width: 420px) {
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+  .demo-pill { font-size: .68rem; }
+  .nav-item { min-width: 56px; font-size: .6rem; }
 }

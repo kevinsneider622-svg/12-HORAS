@@ -525,14 +525,14 @@ function renderTablaEnvios(envios, rol) {
     <tbody>
       ${envios.map(e => `
         <tr>
-          <td><code style="font-size:.8rem;background:var(--bg);padding:.1rem .35rem;border-radius:4px">${e.codigo_seguimiento}</code></td>
-          ${rol === 'admin' ? `<td>${e.cliente_nombre || '—'}</td>` : ''}
-          <td>${e.destinatario_nombre}</td>
-          ${rol === 'admin'         ? `<td>${e.transportador_nombre || '<span style="color:var(--muted)">Sin asignar</span>'}</td>` : ''}
-          ${rol !== 'admin'         ? `<td>${e.ciudad_entrega}</td>` : ''}
-          <td>${badgeEstado(e.estado)}</td>
-          ${rol !== 'admin'         ? `<td>${formatDate(e.creado_en)}</td>` : ''}
-          <td>
+          <td data-label="Código"><code style="font-size:.8rem;background:var(--bg);padding:.1rem .35rem;border-radius:4px">${e.codigo_seguimiento}</code></td>
+          ${rol === 'admin' ? `<td data-label="Cliente">${e.cliente_nombre || '—'}</td>` : ''}
+          <td data-label="Destino">${e.destinatario_nombre}</td>
+          ${rol === 'admin'         ? `<td data-label="Transportador">${e.transportador_nombre || '<span style="color:var(--muted)">Sin asignar</span>'}</td>` : ''}
+          ${rol !== 'admin'         ? `<td data-label="Ciudad">${e.ciudad_entrega}</td>` : ''}
+          <td data-label="Estado">${badgeEstado(e.estado)}</td>
+          ${rol !== 'admin'         ? `<td data-label="Fecha">${formatDate(e.creado_en)}</td>` : ''}
+          <td data-label="Acciones">
             <button class="btn btn-sm btn-outline" onclick="verDetalle(${e.id})">Ver</button>
             ${(rol === 'admin' || rol === 'transportador') ? 
               `<button class="btn btn-sm btn-primary" style="margin-left:.3rem" onclick="abrirModalEstado(${e.id},'${e.estado}')">Estado</button>` : ''}
