@@ -912,6 +912,33 @@ async function doExport() {
   } catch (e) { showToast('❌ ' + e.message); }
 }
 
+
+async function exportarExcelFiltrado(origen) {
+  showToast('⏳ Generando archivo Excel…');
+  try {
+    let url = `${API}/envios/export/excel`;
+
+    // Si viene del dashboard, usa el rango de fechas actualmente filtrado
+    if (origen === 'dashboard') {
+      const desde = document.getElementById('dashDesde')?.value;
+      const hasta = document.getElementById('dashHasta')?.value;
+      if (desde && hasta) url += `?desde=${desde}&hasta=${hasta}`;
+    }
+
+    const r = await fetch(url, { headers: authHeaders() });
+    if (!r.ok) throw new Error('Error al generar Excel');
+    const blob = await r.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `logistica_${new Date().toISOString().slice(0,10)}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    showToast('✅ Excel descargado correctamente');
+  } catch (e) {
+    showToast('❌ ' + e.message);
+  }
+}
+
 /* ════════════════════════════════════════════════════════════
    HELPERS
 ════════════════════════════════════════════════════════════ */

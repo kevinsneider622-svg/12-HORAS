@@ -259,6 +259,15 @@ router.patch('/:id/asignar', auth, requireRole('admin'), async (req, res, next) 
 /* ── GET /api/envios/export/excel ───────────────────────────── */
 router.get('/export/excel', auth, requireRole('admin'), async (req, res, next) => {
   try {
+    const { desde, hasta } = req.query;
+    let filtroFecha = '';
+    const params = [];
+
+    if (desde && hasta) {
+      filtroFecha = 'WHERE e.creado_en >= ? AND e.creado_en <= ?';
+      params.push(`${desde} 00:00:00`, `${hasta} 23:59:59`);
+    }
+
     const [envios] = await db.query(
       `SELECT e.codigo_seguimiento AS 'Código',
               uc.nombre           AS 'Cliente',
@@ -276,7 +285,9 @@ router.get('/export/excel', auth, requireRole('admin'), async (req, res, next) =
        FROM envios e
        JOIN usuarios uc ON e.cliente_id = uc.id
        LEFT JOIN usuarios ut ON e.transportador_id = ut.id
-       ORDER BY e.creado_en DESC`
+       ${filtroFecha}
+       ORDER BY e.creado_en DESC`,
+      params
     );
 
     const wb = XLSX.utils.book_new();
