@@ -1,11 +1,16 @@
 const mysql = require('mysql2/promise');
 
+const sslConfig = process.env.DB_SSL_CA
+  ? { ca: process.env.DB_SSL_CA }
+  : undefined;
+
 const pool = mysql.createPool({
-  host:               process.env.DB_HOST     || 'localhost',
+  host:               process.env.DB_HOST,
   port:               parseInt(process.env.DB_PORT || '3306'),
-  user:               process.env.DB_USER     || 'root',
-  password:           process.env.DB_PASSWORD || '7372546011',
-  database:           process.env.DB_NAME     || 'logistica_db',
+  user:               process.env.DB_USER,
+  password:           process.env.DB_PASSWORD,
+  database:           process.env.DB_NAME,
+  ssl:                sslConfig,
   waitForConnections: true,
   connectionLimit:    10,
   queueLimit:         0,
