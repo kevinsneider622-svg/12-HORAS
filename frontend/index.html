@@ -536,9 +536,9 @@ async function renderBandeja() {
 
 function renderTablaEnvios(envios, rol) {
   const cols = {
-    cliente:       ['Código','Destino','Ciudad','Estado','Valor Comercial','Total','Fecha','Acciones'],
-    admin:         ['Código','Cliente','Destino','Transportador','Estado','Valor Comercial','Total','Acciones'],
-    transportador: ['Código','Destino','Ciudad','Estado','Valor Comercial','Total','Fecha','Acciones'],
+    cliente:       ['Código','Destino','Ciudad','Estado','Tarifa Envío','Valor Comercial','Total','Fecha','Acciones'],
+    admin:         ['Código','Cliente','Destino','Transportador','Estado','Tarifa Envío','Valor Comercial','Total','Acciones'],
+    transportador: ['Código','Destino','Ciudad','Estado','Tarifa Envío','Valor Comercial','Total','Fecha','Acciones'],
   }[rol];
 
   return `<table>
@@ -555,7 +555,7 @@ function renderTablaEnvios(envios, rol) {
           <td>${e.destinatario_nombre}</td>
           ${rol === 'admin' ? `<td>${e.transportador_nombre || '<span style="color:var(--muted)">Sin asignar</span>'}</td>` : ''}
           ${rol !== 'admin' ? `<td>${e.ciudad_entrega}</td>` : ''}
-          <td>${badgeEstado(e.estado)}</td>
+          <td style="font-size:.82rem">$${tarifa.toLocaleString('es-CO')}</td>
           <td style="font-size:.82rem">$${valorCom.toLocaleString('es-CO')}</td>
           <td style="font-weight:700;color:var(--brand)">$${total.toLocaleString('es-CO')}</td>
           ${rol !== 'admin' ? `<td style="font-size:.8rem;color:var(--muted)">${formatDate(e.creado_en)}</td>` : ''}
