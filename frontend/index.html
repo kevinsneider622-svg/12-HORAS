@@ -425,7 +425,7 @@ function renderDashboardConFiltro(todosEnvios, desde, hasta) {
   const transito  = enviosFiltrados.filter(e => e.estado === 'En Tránsito').length;
   const entreg    = enviosFiltrados.filter(e => e.estado === 'Entregado').length;
   const devol     = enviosFiltrados.filter(e => e.estado === 'Devolución').length;
-  const ingresos  = total * 10000;
+  const ingresos = envios.reduce((s, e) => s + parseFloat(e.tarifa||10000) + parseFloat(e.valor_comercial||0), 0);
 
   // Últimos envíos: excluir entregados hace más de 3 días, dentro del rango
   const hace3dias = new Date();
@@ -515,31 +515,37 @@ async function renderBandeja() {
 
 function renderTablaEnvios(envios, rol) {
   const cols = {
-    cliente:       ['Código',      'Destino',       'Ciudad',        'Estado',       'Fecha',    'Acciones'],
-    admin:         ['Código',      'Cliente',        'Destino',       'Transportador','Estado',   'Acciones'],
-    transportador: ['Código',      'Destino',        'Ciudad',        'Estado',       'Fecha',    'Acciones'],
+    cliente:       ['Código','Destino','Ciudad','Estado','Valor Comercial','Total','Fecha','Acciones'],
+    admin:         ['Código','Cliente','Destino','Transportador','Estado','Valor Comercial','Total','Acciones'],
+    transportador: ['Código','Destino','Ciudad','Estado','Valor Comercial','Total','Fecha','Acciones'],
   }[rol];
 
   return `<table>
     <thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
     <tbody>
-      ${envios.map(e => `
+      ${envios.map(e => {
+        const valorCom = parseFloat(e.valor_comercial || 0);
+        const tarifa   = parseFloat(e.tarifa || 10000);
+        const total    = valorCom + tarifa;
+        return `
         <tr>
-          <td data-label="Código"><code style="font-size:.8rem;background:var(--bg);padding:.1rem .35rem;border-radius:4px">${e.codigo_seguimiento}</code></td>
-          ${rol === 'admin' ? `<td data-label="Cliente">${e.cliente_nombre || '—'}</td>` : ''}
-          <td data-label="Destino">${e.destinatario_nombre}</td>
-          ${rol === 'admin'         ? `<td data-label="Transportador">${e.transportador_nombre || '<span style="color:var(--muted)">Sin asignar</span>'}</td>` : ''}
-          ${rol !== 'admin'         ? `<td data-label="Ciudad">${e.ciudad_entrega}</td>` : ''}
-          <td data-label="Estado">${badgeEstado(e.estado)}</td>
-          ${rol !== 'admin'         ? `<td data-label="Fecha">${formatDate(e.creado_en)}</td>` : ''}
-          <td data-label="Acciones">
+          <td><code style="font-size:.8rem;background:var(--bg);padding:.1rem .35rem;border-radius:4px">${e.codigo_seguimiento}</code></td>
+          ${rol === 'admin' ? `<td>${e.cliente_nombre || '—'}</td>` : ''}
+          <td>${e.destinatario_nombre}</td>
+          ${rol === 'admin' ? `<td>${e.transportador_nombre || '<span style="color:var(--muted)">Sin asignar</span>'}</td>` : ''}
+          ${rol !== 'admin' ? `<td>${e.ciudad_entrega}</td>` : ''}
+          <td>${badgeEstado(e.estado)}</td>
+          <td style="font-size:.82rem">$${valorCom.toLocaleString('es-CO')}</td>
+          <td style="font-weight:700;color:var(--brand)">$${total.toLocaleString('es-CO')}</td>
+          ${rol !== 'admin' ? `<td style="font-size:.8rem;color:var(--muted)">${formatDate(e.creado_en)}</td>` : ''}
+          <td>
             <button class="btn btn-sm btn-outline" onclick="verDetalle(${e.id})">Ver</button>
-            ${(rol === 'admin' || rol === 'transportador') ? 
+            ${(rol === 'admin' || rol === 'transportador') ?
               `<button class="btn btn-sm btn-primary" style="margin-left:.3rem" onclick="abrirModalEstado(${e.id},'${e.estado}')">Estado</button>` : ''}
-            ${rol === 'admin' ? 
+            ${rol === 'admin' ?
               `<button class="btn btn-sm btn-secondary" style="margin-left:.3rem" onclick="abrirModalAsignar(${e.id})">Asignar</button>` : ''}
           </td>
-        </tr>`).join('')}
+        </tr>`}).join('')}
     </tbody>
   </table>`;
 }
@@ -552,19 +558,42 @@ async function verDetalle(id) {
   openModal('modalDetalle');
   try {
     const e = await apiGet(`/envios/${id}`);
-    document.getElementById('modalDetalleTitle').textContent = `Envío ${e.codigo_seguimiento}`;
     document.getElementById('modalDetalleContent').innerHTML = `
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1.25rem;font-size:.875rem">
         <div><div style="font-size:.72rem;color:var(--muted);margin-bottom:.15rem">ESTADO ACTUAL</div>${badgeEstado(e.estado)}</div>
-        <div><div style="font-size:.72rem;color:var(--muted);margin-bottom:.15rem">TARIFA</div><strong>$10.000 COP</strong></div>
         <div><div style="font-size:.72rem;color:var(--muted);margin-bottom:.15rem">DESTINATARIO</div><strong>${e.destinatario_nombre}</strong></div>
         <div><div style="font-size:.72rem;color:var(--muted);margin-bottom:.15rem">TELÉFONO</div>${e.destinatario_tel}</div>
-        <div class="${e.descripcion_paquete ? '' : 'hidden'}" style="grid-column:1/-1">
-          <div style="font-size:.72rem;color:var(--muted);margin-bottom:.15rem">DESCRIPCIÓN</div>${e.descripcion_paquete || ''}
+        <div><div style="font-size:.72rem;color:var(--muted);margin-bottom:.15rem">PESO</div>${e.peso_kg ? e.peso_kg + ' kg' : '—'}</div>
+        ${e.descripcion_paquete ? `
+        <div style="grid-column:1/-1">
+          <div style="font-size:.72rem;color:var(--muted);margin-bottom:.15rem">DESCRIPCIÓN</div>${e.descripcion_paquete}
+        </div>` : ''}
+        <div style="grid-column:1/-1">
+          <div style="font-size:.72rem;color:var(--muted);margin-bottom:.15rem">DIRECCIÓN DE ENTREGA</div>
+          ${e.direccion_entrega}, ${e.ciudad_entrega}
         </div>
-        <div style="grid-column:1/-1"><div style="font-size:.72rem;color:var(--muted);margin-bottom:.15rem">DIRECCIÓN DE ENTREGA</div>${e.direccion_entrega}, ${e.ciudad_entrega}</div>
-        ${e.transportador_nombre ? `<div style="grid-column:1/-1"><div style="font-size:.72rem;color:var(--muted);margin-bottom:.15rem">TRANSPORTADOR</div>${e.transportador_nombre}</div>` : ''}
+        ${e.transportador_nombre ? `
+        <div style="grid-column:1/-1">
+          <div style="font-size:.72rem;color:var(--muted);margin-bottom:.15rem">TRANSPORTADOR</div>${e.transportador_nombre}
+        </div>` : ''}
       </div>
+
+      <div style="background:var(--brand-soft);border:1px solid #F3C9B8;border-radius:var(--radius);padding:.75rem 1rem;margin-bottom:1.25rem;font-size:.875rem">
+        <div style="font-weight:700;margin-bottom:.5rem;color:#7A3010">💰 Resumen financiero</div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:.3rem">
+          <span style="color:var(--muted)">Tarifa de envío</span>
+          <span>$${parseFloat(e.tarifa||10000).toLocaleString('es-CO')} COP</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:.3rem">
+          <span style="color:var(--muted)">Valor comercial del paquete</span>
+          <span>$${parseFloat(e.valor_comercial||0).toLocaleString('es-CO')} COP</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-weight:800;border-top:1px solid #F3C9B8;padding-top:.4rem;margin-top:.4rem">
+          <span>Total</span>
+          <span style="color:var(--brand)">$${(parseFloat(e.tarifa||10000)+parseFloat(e.valor_comercial||0)).toLocaleString('es-CO')} COP</span>
+        </div>
+      </div>
+
       <div style="font-size:.875rem;font-weight:700;margin-bottom:.75rem;border-top:1px solid var(--border);padding-top:.75rem">🗓️ Historial de estados</div>
       <div class="timeline">
         ${(e.historial || []).map((h,i) => `

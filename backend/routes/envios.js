@@ -98,10 +98,11 @@ router.get('/seguimiento/:codigo', async (req, res, next) => {
     const [rows] = await db.query(
       `SELECT e.codigo_seguimiento, e.estado, e.destinatario_nombre,
               e.direccion_entrega, e.ciudad_entrega, e.creado_en, e.actualizado_en,
+              e.valor_comercial, e.tarifa,
               ut.nombre AS transportador_nombre
-       FROM envios e
-       LEFT JOIN usuarios ut ON e.transportador_id = ut.id
-       WHERE e.codigo_seguimiento = ?`, [req.params.codigo]
+      FROM envios e
+      LEFT JOIN usuarios ut ON e.transportador_id = ut.id
+      WHERE e.codigo_seguimiento = ?`, [req.params.codigo]
     );
     if (!rows[0]) return res.status(404).json({ error: 'Código no encontrado' });
 
@@ -144,7 +145,7 @@ for (const datos of enviosData) {
          direccion_entrega, ciudad_entrega, descripcion_paquete || null,
          peso_kg || null, valor_comercial || 0, TARIFA_FIJA]
       );
-      
+
       const envioId = r.insertId;
 
       await conn.query(
