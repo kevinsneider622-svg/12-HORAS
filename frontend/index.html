@@ -403,13 +403,34 @@ async function renderDashboard() {
   setMain('<div class="page-title">📊 Dashboard</div><div style="color:var(--muted)">Cargando…</div>');
   try {
     const envios = await apiGet('/envios');
-    const hoy = new Date();
+    const total     = envios.length;
+    const recibidos = envios.filter(e => e.estado === 'Recibido').length;
+    const transito  = envios.filter(e => e.estado === 'En Tránsito').length;
+    const entreg    = envios.filter(e => e.estado === 'Entregado').length;
+    const devol     = envios.filter(e => e.estado === 'Devolución').length;
+    const ingresos  = envios.reduce((s, e) => s + parseFloat(e.tarifa||10000) + parseFloat(e.valor_comercial||0), 0);
 
-    // Fechas por defecto: primer día del mes actual hasta hoy
-    const primerDia = new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString().slice(0,10);
-    const hoyStr    = hoy.toISOString().slice(0,10);
+    setMain(`
+      <div class="page-title">📊 Dashboard</div>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-icon">📦</div><div class="stat-label">Total envíos</div><div class="stat-value">${total}</div></div>
+        <div class="stat-card"><div class="stat-icon">🟡</div><div class="stat-label">Pendientes</div><div class="stat-value" style="color:var(--warning)">${recibidos}</div></div>
+        <div class="stat-card"><div class="stat-icon">🚚</div><div class="stat-label">En Tránsito</div><div class="stat-value" style="color:var(--info)">${transito}</div></div>
+        <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-label">Entregados</div><div class="stat-value" style="color:var(--success)">${entreg}</div></div>
+        <div class="stat-card"><div class="stat-icon">↩️</div><div class="stat-label">Devoluciones</div><div class="stat-value" style="color:var(--danger)">${devol}</div></div>
+        <div class="stat-card"><div class="stat-icon">💰</div><div class="stat-label">Ingresos totales</div><div class="stat-value" style="color:var(--brand);font-size:1.3rem">$${ingresos.toLocaleString('es-CO')}</div></div>
+      </div>
 
-    renderDashboardConFiltro(envios, primerDia, hoyStr);
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">📬 Últimos envíos</span>
+          <button class="btn btn-primary btn-sm" onclick="navigate('bandeja')">Ver todos</button>
+        </div>
+        <div class="table-wrap">
+          ${renderTablaEnvios(envios.slice(0,8), 'admin')}
+        </div>
+      </div>
+    `);
   } catch (e) { setMain(`<div class="alert alert-error">${e.message}</div>`); }
 }
 
