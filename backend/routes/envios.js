@@ -127,9 +127,9 @@ router.post('/', auth, requireRole('cliente','admin'), async (req, res, next) =>
     const enviosData = Array.isArray(req.body.envios) ? req.body.envios : [req.body];
     const creados = [];
 
-    for (const datos of enviosData) {
+for (const datos of enviosData) {
       const { destinatario_nombre, destinatario_tel, direccion_entrega,
-              ciudad_entrega, descripcion_paquete, peso_kg } = datos;
+              ciudad_entrega, descripcion_paquete, peso_kg, valor_comercial } = datos;
 
       if (!destinatario_nombre || !destinatario_tel || !direccion_entrega || !ciudad_entrega)
         throw Object.assign(new Error('Faltan datos del destinatario'), { status: 400 });
@@ -138,12 +138,13 @@ router.post('/', auth, requireRole('cliente','admin'), async (req, res, next) =>
       const [r] = await conn.query(
         `INSERT INTO envios
            (codigo_seguimiento, cliente_id, destinatario_nombre, destinatario_tel,
-            direccion_entrega, ciudad_entrega, descripcion_paquete, peso_kg, tarifa)
-         VALUES (?,?,?,?,?,?,?,?,?)`,
+            direccion_entrega, ciudad_entrega, descripcion_paquete, peso_kg, valor_comercial, tarifa)
+         VALUES (?,?,?,?,?,?,?,?,?,?)`,
         [codigo, clienteId, destinatario_nombre, destinatario_tel,
          direccion_entrega, ciudad_entrega, descripcion_paquete || null,
-         peso_kg || null, TARIFA_FIJA]
+         peso_kg || null, valor_comercial || 0, TARIFA_FIJA]
       );
+      
       const envioId = r.insertId;
 
       await conn.query(

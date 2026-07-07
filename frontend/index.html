@@ -672,36 +672,74 @@ function renderPkgForm(n) {
       <div class="form-grid" style="margin-top:.5rem">
         <div class="form-field">
           <label>Nombre del destinatario *</label>
-          <input type="text" id="pkg${n}_nombre" placeholder="">
+          <input type="text" id="pkg${n}_nombre" placeholder="María García">
         </div>
         <div class="form-field">
           <label>Teléfono *</label>
-          <input type="tel" id="pkg${n}_tel" placeholder="">
+          <input type="tel" id="pkg${n}_tel" placeholder="3001234567">
         </div>
         <div class="form-field full">
           <label>Dirección de entrega *</label>
-          <input type="text" id="pkg${n}_dir" placeholder="">
+          <input type="text" id="pkg${n}_dir" placeholder="Cra 7 # 45-12 Apto 301">
         </div>
         <div class="form-field">
           <label>Ciudad *</label>
-          <input type="text" id="pkg${n}_ciudad" placeholder="">
+          <input type="text" id="pkg${n}_ciudad" placeholder="Bogotá">
         </div>
         <div class="form-field">
           <label>Peso aprox. (kg)</label>
-          <input type="number" step=".1" id="pkg${n}_peso" placeholder="">
+          <input type="number" step=".1" id="pkg${n}_peso" placeholder="1.5">
+        </div>
+        <div class="form-field">
+          <label>Valor comercial del paquete (COP)</label>
+          <input type="number" step="1" min="0" id="pkg${n}_valor"
+                 placeholder="0" oninput="recalcularTotal()">
         </div>
         <div class="form-field full">
           <label>Descripción del paquete</label>
-          <textarea id="pkg${n}_desc" rows="2" placeholder=""></textarea>
+          <textarea id="pkg${n}_desc" rows="2" placeholder="Ropa, calzado, electrónico…"></textarea>
+        </div>
+        <div class="form-field full">
+          <div style="background:var(--brand-soft);border:1px solid #F3C9B8;border-radius:var(--radius);padding:.65rem 1rem;font-size:.875rem">
+            <div style="display:flex;justify-content:space-between;margin-bottom:.25rem">
+              <span style="color:var(--muted)">Tarifa de envío</span>
+              <span>$10.000 COP</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:.25rem">
+              <span style="color:var(--muted)">Valor comercial</span>
+              <span id="pkg${n}_display_valor">$0 COP</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-weight:800;border-top:1px solid #F3C9B8;padding-top:.35rem;margin-top:.35rem">
+              <span>Total este envío</span>
+              <span id="pkg${n}_display_total" style="color:var(--brand)">$10.000 COP</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>`;
 }
 
+function recalcularTotal() {
+  let granTotal = 0;
+  const rows = document.querySelectorAll('.pkg-row');
+  rows.forEach(row => {
+    const n     = row.id.replace('pkg','');
+    const valor = parseFloat(document.getElementById(`pkg${n}_valor`)?.value || 0);
+    const total = 10000 + valor;
+    granTotal  += total;
+    if (document.getElementById(`pkg${n}_display_valor`))
+      document.getElementById(`pkg${n}_display_valor`).textContent = `$${valor.toLocaleString('es-CO')} COP`;
+    if (document.getElementById(`pkg${n}_display_total`))
+      document.getElementById(`pkg${n}_display_total`).textContent = `$${total.toLocaleString('es-CO')} COP`;
+  });
+  const el = document.getElementById('totalEstimado');
+  if (el) el.textContent = `$${granTotal.toLocaleString('es-CO')} COP`;
+}
+
 function addPkg() {
   pkgCount++;
   document.getElementById('pkgsContainer').insertAdjacentHTML('beforeend', renderPkgForm(pkgCount));
-  document.getElementById('totalEstimado').textContent = `$${(pkgCount * 10000).toLocaleString('es-CO')} COP`;
+  recalcularTotal();
 }
 
 function removePkg(n) {
@@ -724,12 +762,15 @@ async function submitNuevoEnvio() {
     const ciudad = document.getElementById(`pkg${n}_ciudad`)?.value.trim();
     const peso   = document.getElementById(`pkg${n}_peso`)?.value;
     const desc   = document.getElementById(`pkg${n}_desc`)?.value.trim();
+    const valor  = parseFloat(document.getElementById(`pkg${n}_valor`)?.value || 0);
 
     if (!nombre || !tel || !dir || !ciudad) {
       alert.innerHTML = `<div class="alert alert-error">Completa todos los campos obligatorios del destino ${n}</div>`;
       return;
     }
-    envios.push({ destinatario_nombre:nombre, destinatario_tel:tel, direccion_entrega:dir, ciudad_entrega:ciudad, peso_kg:peso||null, descripcion_paquete:desc||null });
+    envios.push({ destinatario_nombre:nombre, destinatario_tel:tel, direccion_entrega:dir,
+                  ciudad_entrega:ciudad, peso_kg:peso||null, descripcion_paquete:desc||null,
+                  valor_comercial: valor });
   }
 
   try {
@@ -989,4 +1030,3 @@ function showToast(msg) {
 </script>
 </body>
 </html>
-.
