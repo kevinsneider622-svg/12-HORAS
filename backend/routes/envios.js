@@ -2,6 +2,7 @@ const router = require('express').Router();
 const db     = require('../db');
 const { auth, requireRole } = require('../middleware/auth');
 const XLSX   = require('xlsx');
+const { enviarPushAUsuario } = require('./notificaciones');
 
 // ESTADOS
 const ESTADOS_ADMIN   = ['Registrado','Recibido','En Tránsito','Entregado','Devolución','Reprogramado'];
@@ -159,7 +160,9 @@ for (const datos of enviosData) {
       for (const adm of admins)
         await notificar(conn, adm.id, envioId,
           `📦 Nuevo envío ${codigo} de ${req.user.nombre} → ${ciudad_entrega}`);
-
+           enviarPushAUsuario(adm.id, '📦 Nuevo envío recibido',
+          `De ${req.user.nombre} con destino ${ciudad_entrega}`,
+          { codigo, url: '/' });
       creados.push({ id: envioId, codigo_seguimiento: codigo });
     }
 
@@ -198,6 +201,10 @@ router.patch('/:id/estado', auth, requireRole('admin','transportador'), async (r
 
     await notificar(conn, envio.cliente_id, envio.id,
       `📍 Tu envío ${envio.codigo_seguimiento} cambió a: ${estado}`);
+
+    enviarPushAUsuario(envio.cliente_id, `📍 Envío ${envio.codigo_seguimiento}`,
+    `Tu paquete cambió a: ${estado}`,
+    { codigo: envio.codigo_seguimiento, url: '/' });
 
     await conn.commit();
     res.json({ mensaje: 'Estado actualizado', estado });
@@ -246,6 +253,10 @@ router.patch('/:id/asignar', auth, requireRole('admin'), async (req, res, next) 
     await notificar(conn, transportador_id, envio.id,
       `🚚 Se te asignó el envío ${envio.codigo_seguimiento} con destino ${envio.ciudad_entrega}`);
 
+    enviarPushAUsuario(transportador_id, '🚚 Nuevo envío asignado',
+      `Código ${envio.codigo_seguimiento} → ${envio.ciudad_entrega}`,
+      { codigo: envio.codigo_seguimiento, url: '/' });
+      
     // Notificar al cliente del cambio automático de estado
     await notificar(conn, envio.cliente_id, envio.id,
       `📍 Tu envío ${envio.codigo_seguimiento} cambió a: ${NUEVO_ESTADO}`);

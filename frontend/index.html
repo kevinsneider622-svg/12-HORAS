@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>12 HORAS — Plataforma de Logística</title>
 <link rel="stylesheet" href="styles.css">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#E8500A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="12 HORAS">
+<link rel="apple-touch-icon" href="/iconos/icon-192.png">
 
 <!-- ══════════════════════════════════════════════════════════
      LOGIN
@@ -53,6 +59,11 @@
   <header>
     <div class="header-logo">🛵 12 HORAS</div>
     <div class="header-right">
+      <button id="btnPushToggle" class="btn btn-sm btn-outline" 
+              style="font-size:.75rem;border-color:rgba(255,255,255,.3);color:#fff"
+              onclick="suscribirPush()">
+        🔔 Activar notificaciones
+      </button>
       <button class="notif-btn" onclick="toggleNotifPanel()" title="Notificaciones">
         🔔
         <span class="notif-badge hidden" id="notifBadge">0</span>
@@ -291,6 +302,7 @@ async function initApp() {
   // Navegar al primer ítem del menú
   const firstNav = document.querySelector('.nav-item[data-page]');
   if (firstNav) firstNav.click();
+  setTimeout(verificarEstadoPush, 1000);
 }
 
 /* Auto-login si hay token guardado */
@@ -1078,6 +1090,116 @@ function showToast(msg) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.style.opacity = '0', 3000);
 }
+
+/* ════════════════════════════════════════════════════════════
+   PWA — Service Worker + Push Notifications
+════════════════════════════════════════════════════════════ */
+let swRegistration = null;
+
+async function initPWA() {
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    swRegistration = await navigator.serviceWorker.register('/sw.js');
+    console.log('✅ Service Worker registrado');
+
+    // Mostrar botón de instalar si aplica
+    window.addEventListener('beforeinstallprompt', e => {
+      e.preventDefault();
+      window._installPrompt = e;
+      mostrarBotonInstalar();
+    });
+  } catch (e) {
+    console.warn('SW error:', e);
+  }
+}
+
+function mostrarBotonInstalar() {
+  if (document.getElementById('btnInstalarPWA')) return;
+  const btn = document.createElement('button');
+  btn.id        = 'btnInstalarPWA';
+  btn.className = 'btn btn-primary btn-sm';
+  btn.innerHTML = '📲 Instalar app';
+  btn.style.cssText = 'position:fixed;bottom:1.5rem;right:1.5rem;z-index:998;box-shadow:0 4px 12px rgba(0,0,0,.3)';
+  btn.onclick = async () => {
+    if (!window._installPrompt) return;
+    window._installPrompt.prompt();
+    const { outcome } = await window._installPrompt.userChoice;
+    if (outcome === 'accepted') btn.remove();
+    window._installPrompt = null;
+  };
+  document.body.appendChild(btn);
+
+  // Auto-ocultar después de 15 segundos
+  setTimeout(() => btn?.remove(), 15000);
+}
+
+async function suscribirPush() {
+  if (!swRegistration || !('PushManager' in window)) return;
+  try {
+    const permiso = await Notification.requestPermission();
+    if (permiso !== 'granted') return showToast('⚠️ Notificaciones no permitidas');
+
+    // Obtener clave pública VAPID del servidor
+    const { key } = await apiGet('/notificaciones/vapid-public-key');
+    const vapidKey = urlBase64ToUint8Array(key);
+
+    const sub = await swRegistration.pushManager.subscribe({
+      userVisibleOnly:      true,
+      applicationServerKey: vapidKey
+    });
+
+    await apiPost('/notificaciones/suscribir', { subscription: sub.toJSON() });
+    showToast('🔔 Notificaciones push activadas');
+    actualizarBotonPush(true);
+  } catch (e) {
+    console.error('Push error:', e);
+    showToast('❌ No se pudieron activar las notificaciones');
+  }
+}
+
+async function desuscribirPush() {
+  if (!swRegistration) return;
+  try {
+    const sub = await swRegistration.pushManager.getSubscription();
+    if (sub) await sub.unsubscribe();
+    await apiGet('/notificaciones/desuscribir').catch(() =>
+      fetch(API + '/notificaciones/desuscribir', { method:'DELETE', headers: authHeaders() })
+    );
+    showToast('🔕 Notificaciones push desactivadas');
+    actualizarBotonPush(false);
+  } catch (e) {
+    showToast('❌ Error al desactivar notificaciones');
+  }
+}
+
+async function verificarEstadoPush() {
+  if (!swRegistration || !('PushManager' in window)) return;
+  const sub = await swRegistration.pushManager.getSubscription().catch(() => null);
+  actualizarBotonPush(!!sub);
+}
+
+function actualizarBotonPush(activo) {
+  const btn = document.getElementById('btnPushToggle');
+  if (!btn) return;
+  if (activo) {
+    btn.textContent = '🔕 Desactivar notificaciones';
+    btn.onclick = desuscribirPush;
+  } else {
+    btn.textContent = '🔔 Activar notificaciones';
+    btn.onclick = suscribirPush;
+  }
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64  = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw     = atob(base64);
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+
+// Iniciar PWA al cargar
+initPWA();
+
 </script>
 </body>
 </html>
