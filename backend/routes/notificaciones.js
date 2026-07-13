@@ -31,8 +31,8 @@ router.post('/suscribir', auth, async (req, res, next) => {
 
     if (existe.length === 0) {
       await db.query(
-        'INSERT INTO push_subscriptions (usuario_id, subscription) VALUES (?,?)',
-        [req.user.id, subStr]
+        'INSERT INTO push_subscriptions (usuario_id, endpoint, subscription) VALUES (?,?,?)',
+        [req.user.id, subscription.endpoint, subStr]
       );
     } else {
       await db.query(
