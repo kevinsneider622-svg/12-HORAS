@@ -157,22 +157,23 @@ for (const datos of enviosData) {
       const [admins] = await conn.query(
         "SELECT id FROM usuarios WHERE rol='admin' AND activo=1"
       );
-      for (const adm of admins)
+      for (const adm of admins) {
         await notificar(conn, adm.id, envioId,
           `📦 Nuevo envío ${codigo} de ${req.user.nombre} → ${ciudad_entrega}`);
            enviarPushAUsuario(adm.id, '📦 Nuevo envío recibido',
           `De ${req.user.nombre} con destino ${ciudad_entrega}`,
           { codigo, url: '/' });
+      }
       creados.push({ id: envioId, codigo_seguimiento: codigo });
     }
 
     await conn.commit();
     res.status(201).json({ mensaje: `${creados.length} envío(s) creado(s)`, envios: creados });
-  } catch (e) {
-    await conn.rollback();
-    next(e);
-  } finally { conn.release(); }
-});
+    } catch (e) {
+      await conn.rollback();
+      next(e);
+    } finally { conn.release(); }
+  });
 
 /* ── PATCH /api/envios/:id/estado ──────────────────────────── */
 router.patch('/:id/estado', auth, requireRole('admin','transportador'), async (req, res, next) => {
@@ -256,7 +257,7 @@ router.patch('/:id/asignar', auth, requireRole('admin'), async (req, res, next) 
     enviarPushAUsuario(transportador_id, '🚚 Nuevo envío asignado',
       `Código ${envio.codigo_seguimiento} → ${envio.ciudad_entrega}`,
       { codigo: envio.codigo_seguimiento, url: '/' });
-      
+
     // Notificar al cliente del cambio automático de estado
     await notificar(conn, envio.cliente_id, envio.id,
       `📍 Tu envío ${envio.codigo_seguimiento} cambió a: ${NUEVO_ESTADO}`);
