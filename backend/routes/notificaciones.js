@@ -113,8 +113,8 @@ async function enviarPushAUsuario(usuarioId, titulo, cuerpo, datos = {}) {
         await webpush.sendNotification(sub, JSON.stringify({
           title: titulo,
           body:  cuerpo,
-          icon:  '/icon-192.png',
-          badge: '/icon-96.png',
+          icon:  '/12horas-192.png',
+          badge: '/12horas-96.png',
           data:  datos
         }));
       } catch (err) {
