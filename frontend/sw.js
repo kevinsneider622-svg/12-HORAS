@@ -3,8 +3,7 @@ const ASSETS = [
   '/',
   '/index.html',
   '/styles.css',
-  'iconos/icon-192.png',
-  '/icon-512.png'
+  'imagenes/12horas.jpg',
 ];
 
 // Instalar y cachear recursos
@@ -42,14 +41,13 @@ self.addEventListener('fetch', e => {
 
 // Recibir notificación push
 self.addEventListener('push', e => {
-  let data = { title: '12 HORAS', body: 'Nueva notificación', icon: '/icon-192.png' };
+  let data = { title: '12 HORAS', body: 'Nueva notificación', icon: '/12horas.jpg' };
   try { data = { ...data, ...JSON.parse(e.data.text()) }; } catch {}
 
   e.waitUntil(
     self.registration.showNotification(data.title, {
       body:    data.body,
-      icon:    data.icon  || 'iconos/icon-192.png',
-      badge:   data.badge || 'iconos/icon-96.png',
+      icon:    data.icon  || 'imagenes/12horas.jpg',
       vibrate: [200, 100, 200],
       data:    data.data  || {},
       actions: [{ action: 'open', title: 'Ver detalle' }]
