@@ -3,7 +3,8 @@ const ASSETS = [
   '/',
   '/index.html',
   '/styles.css',
-  'imagenes/12horas.jpg',
+  'imagenes/12horas-192.png',
+  'imagenes/12horas-512.png'
 ];
 
 // Instalar y cachear recursos
@@ -47,7 +48,8 @@ self.addEventListener('push', e => {
   e.waitUntil(
     self.registration.showNotification(data.title, {
       body:    data.body,
-      icon:    data.icon  || 'imagenes/12horas.jpg',
+      icon:    data.icon  || 'imagenes/12horas-512.jpg',
+
       vibrate: [200, 100, 200],
       data:    data.data  || {},
       actions: [{ action: 'open', title: 'Ver detalle' }]
