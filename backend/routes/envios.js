@@ -273,54 +273,144 @@ router.patch('/:id/asignar', auth, requireRole('admin'), async (req, res, next) 
 /* ── GET /api/envios/export/excel ───────────────────────────── */
 router.get('/export/excel', auth, requireRole('admin'), async (req, res, next) => {
   try {
-    const { desde, hasta } = req.query;
-    let filtroFecha = '';
+    const {
+      cliente,
+      estado,
+      transportador,
+      codigo,
+      desde,
+      hasta
+    } = req.query;
+
+    const where = [];
     const params = [];
 
-    if (desde && hasta) {
-      filtroFecha = 'WHERE e.creado_en >= ? AND e.creado_en <= ?';
-      params.push(`${desde} 00:00:00`, `${hasta} 23:59:59`);
+    // Cliente
+    if (cliente) {
+      where.push("uc.nombre = ?");
+      params.push(cliente);
     }
 
+    // Estado
+    if (estado) {
+      where.push("e.estado = ?");
+      params.push(estado);
+    }
+
+    // Transportador
+    if (transportador) {
+      where.push("ut.nombre = ?");
+      params.push(transportador);
+    }
+
+    // Código de seguimiento
+    if (codigo) {
+      where.push("e.codigo_seguimiento LIKE ?");
+      params.push(`%${codigo}%`);
+    }
+
+    // Fecha inicial
+    if (desde) {
+      where.push("e.creado_en >= ?");
+      params.push(`${desde} 00:00:00`);
+    }
+
+    // Fecha final
+    if (hasta) {
+      where.push("e.creado_en <= ?");
+      params.push(`${hasta} 23:59:59`);
+    }
+
+    const filtroSQL = where.length
+      ? `WHERE ${where.join(" AND ")}`
+      : "";
+
+    console.log('🔎 [EXPORT EXCEL] req.query:', req.query);
+    console.log('🔎 [EXPORT EXCEL] filtroSQL:', filtroSQL, '| params:', params);
+
     const [envios] = await db.query(
-      `SELECT e.codigo_seguimiento AS 'Código',
-              uc.nombre           AS 'Cliente',
-              e.destinatario_nombre AS 'Destinatario',
-              e.destinatario_tel    AS 'Teléfono',
-              e.direccion_entrega   AS 'Dirección',
-              e.ciudad_entrega      AS 'Ciudad',
-              e.descripcion_paquete AS 'Descripción',
-              e.peso_kg             AS 'Peso (kg)',
-              ut.nombre             AS 'Transportador',
-              e.estado              AS 'Estado',
-              e.tarifa              AS 'Tarifa (COP)',
-              e.creado_en           AS 'Fecha Creación',
-              e.actualizado_en      AS 'Última Actualización'
+      `SELECT
+          e.codigo_seguimiento AS 'Código',
+          uc.nombre AS 'Cliente',
+          e.destinatario_nombre AS 'Destinatario',
+          e.destinatario_tel AS 'Teléfono',
+          e.direccion_entrega AS 'Dirección',
+          e.ciudad_entrega AS 'Ciudad',
+          e.descripcion_paquete AS 'Descripción',
+          e.peso_kg AS 'Peso (kg)',
+          e.valor_comercial AS 'Valor Comercial (COP)',
+          e.tarifa AS 'Tarifa Transporte (COP)',
+          (e.valor_comercial + e.tarifa) AS 'Total (COP)',
+          ut.nombre AS 'Transportador',
+          e.estado AS 'Estado',
+          e.creado_en AS 'Fecha Creación',
+          e.actualizado_en AS 'Última Actualización'    
        FROM envios e
        JOIN usuarios uc ON e.cliente_id = uc.id
        LEFT JOIN usuarios ut ON e.transportador_id = ut.id
-       ${filtroFecha}
+       ${filtroSQL}
        ORDER BY e.creado_en DESC`,
       params
     );
+
+    console.log('🔎 [EXPORT EXCEL] filas devueltas:', envios.length);
 
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(envios);
     XLSX.utils.book_append_sheet(wb, ws, 'Envíos');
 
-    const total   = envios.reduce((s, e) => s + parseFloat(e['Tarifa (COP)'] || 0), 0);
+    const totalTarifas = envios.reduce(
+        (s, e) => s + Number(e['Tarifa Transporte (COP)'] || 0),
+        0
+    );
+
+    const totalComercial = envios.reduce(
+        (s, e) => s + Number(e['Valor Comercial (COP)'] || 0),
+        0
+    );
+
+    const totalGeneral = envios.reduce(
+        (s, e) => s + Number(e['Total (COP)'] || 0),
+        0
+    );
+
     const summary = [
-      { Métrica: 'Total envíos',     Valor: envios.length },
-      { Métrica: 'Ingresos totales', Valor: `$${total.toLocaleString('es-CO')} COP` },
-      { Métrica: 'Entregados',       Valor: envios.filter(e => e.Estado === 'Entregado').length },
-      { Métrica: 'En Tránsito',      Valor: envios.filter(e => e.Estado === 'En Tránsito').length },
-      { Métrica: 'Pendientes',       Valor: envios.filter(e => e.Estado === 'Recibido').length },
+        {
+            Métrica: 'Total envíos',
+            Valor: envios.length
+        },
+        {
+            Métrica: 'Valor comercial',
+            Valor: `$${totalComercial.toLocaleString('es-CO')} COP`
+        },
+        {
+            Métrica: 'Tarifas transporte',
+            Valor: `$${totalTarifas.toLocaleString('es-CO')} COP`
+        },
+        {
+            Métrica: 'Total general',
+            Valor: `$${totalGeneral.toLocaleString('es-CO')} COP`
+        },
+        {
+            Métrica: 'Entregados',
+            Valor: envios.filter(e => e.Estado === 'Entregado').length
+        },
+        {
+            Métrica: 'En Tránsito',
+            Valor: envios.filter(e => e.Estado === 'En Tránsito').length
+        },
+        {
+            Métrica: 'Pendientes',
+            Valor: envios.filter(e => e.Estado === 'Recibido').length
+        }
     ];
+    
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summary), 'Resumen');
 
     const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
     res.setHeader('Content-Disposition', `attachment; filename="logistica_${Date.now()}.xlsx"`);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Cache-Control', 'no-store');
     res.send(buf);
   } catch (e) { next(e); }
 });

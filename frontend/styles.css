@@ -595,3 +595,26 @@ tr:hover td { background: var(--bg); }
   .demo-pill { font-size: .68rem; }
   .nav-item { min-width: 56px; font-size: .6rem; }
 }
+
+#tablaEnviosAdmin{
+    width:100%;
+    border-collapse:collapse;
+}
+
+#tablaEnviosAdmin thead th{
+    position:sticky;
+    top:0;
+    z-index:5;
+    background:#ffffff;
+    border-bottom:2px solid #E86A33;
+    box-shadow:0 2px 4px rgba(0,0,0,.08);
+}
+
+#tablaEnviosAdmin tbody tr:nth-child(even){
+    background:#fafafa;
+}
+
+#tablaEnviosAdmin tbody tr:hover{
+    background:#FFF4EF;
+    transition:.2s;
+}

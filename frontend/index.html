@@ -194,6 +194,18 @@ const API = 'https://one2-horas.onrender.com/api';
 let currentUser = null;
 let notifInterval = null;
 
+/*=========================================
+    VARIABLES GLOBALES ENVÍOS V2
+==========================================*/
+
+let enviosOriginales=[];
+let enviosFiltrados=[];
+let resumenActual={
+    valor:0,
+    tarifa:0,
+    total:0
+};
+
 /* ════════════════════════════════════════════════════════════
    AUTH HELPERS
 ════════════════════════════════════════════════════════════ */
@@ -335,7 +347,6 @@ const MENU_CONFIG = {
     { icon:'📬', label:'Todos los envíos',  page:'bandeja' },
     { icon:'🚚', label:'Transportadores',   page:'transportadores' },
     { icon:'👥', label:'Usuarios',          page:'usuarios' },
-    { icon:'📥', label:'Exportar Excel',    page:'exportar' },
   ],
   transportador: [
     { icon:'📬', label:'Mis asignados',     page:'bandeja' },
@@ -364,7 +375,6 @@ function navigate(page, el) {
     rastrear:        renderRastrear,
     transportadores: renderTransportadores,
     usuarios:        renderUsuarios,
-    exportar:        doExport,
   };
   if (pages[page]) pages[page]();
 }
@@ -528,7 +538,9 @@ async function aplicarFiltroDashboard() {
 async function renderBandeja() {
   setMain('<div class="page-title">📬 Bandeja de envíos</div><div style="color:var(--muted)">Cargando…</div>');
   try {
-    const envios = await apiGet('/envios');
+    enviosOriginales=await apiGet('/envios');
+    enviosFiltrados=[...enviosOriginales];
+    const envios=enviosFiltrados;
     const titulo = { cliente:'Mis envíos', admin:'Todos los envíos', transportador:'Mis asignados' }[currentUser.rol];
 
     setMain(`
@@ -536,53 +548,580 @@ async function renderBandeja() {
       ${currentUser.rol === 'cliente' ? `<div class="card" style="margin-bottom:1rem;background:var(--brand-soft);border:1px solid #F3C9B8">
         <p style="font-size:.875rem;color:#7A3010">💡 Tarifa fija por envío: <strong>$10.000 COP</strong></p>
       </div>` : ''}
+
+      ${currentUser.rol === 'admin' ? `
+      <div class="card" style="margin-bottom:18px">
+          <div style="
+              display:grid;
+              grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+              gap:12px;
+              margin-bottom:18px;
+          ">
+              <input
+                  id="buscarGuia"
+                  class="input"
+                  placeholder="🔍 Buscar por guía">
+              <select id="filtroCliente" class="input">
+                  <option value="">👤 Todos los clientes</option>
+              </select>
+
+              <select id="filtroTransportador" class="input">
+                  <option value="">🚚 Todos los transportadores</option>
+              </select>
+
+              <select id="filtroEstado" class="input">
+                  <option value="">📦 Todos los estados</option>
+                  <option>Recibido</option>
+                  <option>En Tránsito</option>
+                  <option>Entregado</option>
+              </select>
+
+              <input
+                  id="fechaInicio"
+                  type="date"
+                  class="input">
+              <input
+                  id="fechaFin"
+                  type="date"
+                  class="input">
+          </div>
+
+          <div style="
+              display:flex;
+              justify-content:space-between;
+              align-items:center;
+              flex-wrap:wrap;
+              gap:10px;
+              margin-bottom:20px;
+          ">
+
+              <button
+                  id="btnLimpiarFiltros"
+                  class="btn btn-outline"
+                  onclick="limpiarFiltros()">
+
+                  🧹 Limpiar filtros
+              </button>
+              <button
+                  class="btn btn-primary"
+                  onclick="exportarExcelFiltrado()">
+                  📥 Exportar Excel
+              </button>
+          </div>
+          <div id="panelIndicadores">
+              <div
+                  id="contadorEnvios"
+                  style="
+                      margin-bottom:15px;
+                      font-size:14px;
+                      color:#666;
+                      font-weight:600;
+                  ">
+                  Cargando indicadores...
+              </div>
+              <div id="resumenFinanciero"></div>
+          </div>
+      </div>
+      ` : ''}
       <div class="card">
         <div class="table-wrap">
-          ${envios.length ? renderTablaEnvios(envios, currentUser.rol) : 
-            '<div class="empty"><div class="empty-icon">📭</div>No hay envíos aún</div>'}
+            ${
+                envios.length
+                    ? (
+                        currentUser.rol==="admin"
+                            ? renderTablaEnviosAdmin(envios)
+                            : renderTablaEnvios(envios,currentUser.rol)
+                      )
+                    : '<div class="empty"><div class="empty-icon">📭</div>No existen envíos</div>'
+            }
         </div>
       </div>
     `);
-  } catch (e) { setMain(`<div class="alert alert-error">${e.message}</div>`); }
+
+    if(currentUser.rol==="admin"){
+        inicializarFiltrosEnvios(envios);
+    }
+
+  } catch (e) {
+    setMain(`<div class="alert alert-error">${e.message}</div>`);
+  }
 }
 
-function renderTablaEnvios(envios, rol) {
-  const cols = {
-    cliente:       ['Código','Destino','Ciudad','Estado','Tarifa Envío','Valor Comercial','Total','Fecha','Acciones'],
-    admin:         ['Código','Cliente','Destino','Transportador','Estado','Tarifa Envío','Valor Comercial','Total','Acciones'],
-    transportador: ['Código','Destino','Ciudad','Estado','Tarifa Envío','Valor Comercial','Total','Fecha','Acciones'],
-  }[rol];
 
-  return `<table>
-    <thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
-    <tbody>
-      ${envios.map(e => {
-        const valorCom = parseFloat(e.valor_comercial || 0);
-        const tarifa   = parseFloat(e.tarifa || 10000);
-        const total    = valorCom + tarifa;
+function renderTablaEnvios(envios, rol){
+    const totalValor = envios.reduce((s,e)=>s+Number(e.valor_comercial||0),0);
+    const totalTarifa = envios.reduce((s,e)=>s+Number(e.tarifa||10000),0);
+    const totalGeneral = totalValor + totalTarifa;
+    if(rol==="admin"){
         return `
+        <div style="max-height:650px;overflow:auto;">
+        <table id="tablaEnviosAdmin">
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Cliente</th>
+                    <th>Destinatario</th>
+                    <th>Ciudad</th>
+                    <th>Transportador</th>
+                    <th>Estado</th>
+                    <th>Valor Comercial</th>
+                    <th>Tarifa</th>
+                    <th>Total</th>
+                    <th>Fecha</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+            ${envios.map(e=>{
+                const valor=parseFloat(e.valor_comercial||0);
+                const tarifa=parseFloat(e.tarifa||10000);
+                const total=valor+tarifa;
+                return `
+                <tr
+                    data-cliente="${e.cliente_nombre||''}"
+                    data-transportador="${e.transportador_nombre||''}"
+                    data-estado="${e.estado}"
+                    data-fecha="${e.creado_en}"
+                    data-codigo="${e.codigo_seguimiento}"
+                    data-valor="${valor}"
+                    data-tarifa="${tarifa}"
+                    data-total="${total}"
+                >
+                    <td>
+                        <code>
+                        ${e.codigo_seguimiento}
+                        </code>
+                    </td>
+                    <td>
+                        ${e.cliente_nombre||'-'}
+                    </td>
+                    <td>
+                        ${e.destinatario_nombre}
+                    </td>
+                    <td>
+                        ${e.ciudad_entrega}
+                    </td>
+                    <td>
+                        ${e.transportador_nombre||'<span style="color:#999">Sin asignar</span>'}
+                    </td>
+                    <td>
+                        ${badgeEstado(e.estado)}
+                    </td>
+                    <td style="text-align:right">
+                        $${valor.toLocaleString('es-CO')}
+                    </td>
+                    <td style="text-align:right">
+                        $${tarifa.toLocaleString('es-CO')}
+                    </td>
+                    <td
+                        style="
+                        font-weight:bold;
+                        color:#E86A33;
+                        text-align:right;
+                        "
+                    >                 
+                        $${total.toLocaleString('es-CO')}
+                    </td>
+                    <td>
+                        ${formatDate(e.creado_en)}
+                    </td>
+                    <td>
+                        <button
+                            class="btn btn-sm btn-outline"
+                            onclick="verDetalle(${e.id})">
+                            Ver
+                        </button>
+                        <button
+                            class="btn btn-sm btn-primary"
+                            onclick="abrirModalEstado(${e.id},'${e.estado}')">
+                            Estado
+                        </button>
+                        <button
+                            class="btn btn-sm btn-secondary"
+                            onclick="abrirModalAsignar(${e.id})">
+                            Asignar
+                        </button>
+                    </td>
+                </tr>
+                `;
+            }).join("")}
+            <tr style="background:#FFF3EB;font-weight:bold">
+            <td colspan="6" style="text-align:right">
+                TOTALES
+            </td>
+            <td style="text-align:right">
+                $${totalValor.toLocaleString('es-CO')}
+            </td>
+            <td style="text-align:right">
+                $${totalTarifa.toLocaleString('es-CO')}
+            </td>
+            <td style="text-align:right;color:#E86A33">
+                $${totalGeneral.toLocaleString('es-CO')}
+            </td>
+            <td colspan="2"></td>
+        </tr>
+            </tbody>
+        </table>
+      </div>
+        `;
+      }
+
+
+    /* ==========================
+       CLIENTE Y TRANSPORTADOR
+       ========================== */
+
+    const cols={
+        cliente:['Código','Destino','Ciudad','Estado','Tarifa','Valor Comercial','Total','Fecha','Acciones'],
+        transportador:['Código','Destino','Ciudad','Estado','Tarifa','Valor Comercial','Total','Fecha','Acciones']
+    }[rol];
+
+    return `
+
+    <table>
+    <thead>
         <tr>
-          <td><code style="font-size:.8rem;background:var(--bg);padding:.1rem .35rem;border-radius:4px">${e.codigo_seguimiento}</code></td>
-          ${rol === 'admin' ? `<td>${e.cliente_nombre || '—'}</td>` : ''}
-          <td>${e.destinatario_nombre}</td>
-          ${rol === 'admin' ? `<td>${e.transportador_nombre || '<span style="color:var(--muted)">Sin asignar</span>'}</td>` : ''}
-          ${rol !== 'admin' ? `<td>${e.ciudad_entrega}</td>` : ''}
-          <td>${badgeEstado(e.estado)}</td>
-          <td style="font-size:.82rem;color:var(--muted)">$${tarifa.toLocaleString('es-CO')}</td>
-          <td style="font-size:.82rem">$${valorCom.toLocaleString('es-CO')}</td>
-          <td style="font-weight:700;color:var(--brand)">$${total.toLocaleString('es-CO')}</td>
-          ${rol !== 'admin' ? `<td style="font-size:.8rem;color:var(--muted)">${formatDate(e.creado_en)}</td>` : ''}
-          <td>
-            <button class="btn btn-sm btn-outline" onclick="verDetalle(${e.id})">Ver</button>
-            ${(rol === 'admin' || rol === 'transportador') ?
-              `<button class="btn btn-sm btn-primary" style="margin-left:.3rem" onclick="abrirModalEstado(${e.id},'${e.estado}')">Estado</button>` : ''}
-            ${rol === 'admin' ?
-              `<button class="btn btn-sm btn-secondary" style="margin-left:.3rem" onclick="abrirModalAsignar(${e.id})">Asignar</button>` : ''}
-          </td>
-        </tr>`}).join('')}
+        ${cols.map(c=>`<th>${c}</th>`).join("")}
+        </tr>
+    </thead>
+    <tbody>
+    ${envios.map(e=>{
+        const valor=parseFloat(e.valor_comercial||0);
+        const tarifa=parseFloat(e.tarifa||10000);
+        const total=valor+tarifa;
+        return`
+        <tr>
+            <td><code>${e.codigo_seguimiento}</code></td>
+            <td>${e.destinatario_nombre}</td>
+            <td>${e.ciudad_entrega}</td>
+            <td>${badgeEstado(e.estado)}</td>
+            <td>$${tarifa.toLocaleString('es-CO')}</td>
+            <td>$${valor.toLocaleString('es-CO')}</td>
+            <td><strong>$${total.toLocaleString('es-CO')}</strong></td>
+            <td>${formatDate(e.creado_en)}</td>
+            <td>
+                <button class="btn btn-sm btn-outline"
+                onclick="verDetalle(${e.id})">
+                Ver
+                </button>
+                <button
+                class="btn btn-sm btn-primary"
+                onclick="abrirModalEstado(${e.id},'${e.estado}')">
+                Estado
+                </button>
+            </td>
+        </tr>
+        `;
+    }).join("")}
+
     </tbody>
-  </table>`;
+    </table>
+    `;
 }
+
+function renderTablaEnviosAdmin(envios){
+
+    const totalValor = envios.reduce((s,e)=>s+Number(e.valor_comercial||0),0);
+    const totalTarifa = envios.reduce((s,e)=>s+Number(e.tarifa||10000),0);
+    const totalGeneral = totalValor + totalTarifa;
+
+    return `
+    <div style="max-height:650px;overflow:auto;">
+        <table id="tablaEnviosAdmin">
+
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Cliente</th>
+                    <th>Destinatario</th>
+                    <th>Ciudad</th>
+                    <th>Transportador</th>
+                    <th>Estado</th>
+                    <th style="text-align:right">Valor Comercial</th>
+                    <th style="text-align:right">Tarifa</th>
+                    <th style="text-align:right">Total</th>
+                    <th>Fecha</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+                ${envios.map(e=>{
+
+                    const valor=Number(e.valor_comercial||0);
+                    const tarifa=Number(e.tarifa||10000);
+                    const total=valor+tarifa;
+
+                    return `
+                    <tr
+                        data-cliente="${e.cliente_nombre||''}"
+                        data-transportador="${e.transportador_nombre||''}"
+                        data-estado="${e.estado}"
+                        data-fecha="${e.creado_en}"
+                        data-codigo="${e.codigo_seguimiento}"
+                        data-valor="${valor}"
+                        data-tarifa="${tarifa}"
+                        data-total="${total}"
+                    >
+
+                        <td><code>${e.codigo_seguimiento}</code></td>
+
+                        <td>${e.cliente_nombre||'-'}</td>
+
+                        <td>${e.destinatario_nombre}</td>
+
+                        <td>${e.ciudad_entrega}</td>
+
+                        <td>${e.transportador_nombre||'<span style="color:#999">Sin asignar</span>'}</td>
+
+                        <td>${badgeEstado(e.estado)}</td>
+
+                        <td style="text-align:right">
+                            $${valor.toLocaleString('es-CO')}
+                        </td>
+
+                        <td style="text-align:right">
+                            $${tarifa.toLocaleString('es-CO')}
+                        </td>
+
+                        <td style="text-align:right;font-weight:bold;color:#E86A33">
+                            $${total.toLocaleString('es-CO')}
+                        </td>
+
+                        <td>${formatDate(e.creado_en)}</td>
+
+                        <td>
+
+                            <button
+                                class="btn btn-sm btn-outline"
+                                onclick="verDetalle(${e.id})">
+                                Ver
+                            </button>
+
+                            <button
+                                class="btn btn-sm btn-primary"
+                                onclick="abrirModalEstado(${e.id},'${e.estado}')">
+                                Estado
+                            </button>
+
+                            <button
+                                class="btn btn-sm btn-secondary"
+                                onclick="abrirModalAsignar(${e.id})">
+                                Asignar
+                            </button>
+
+                        </td>
+
+                    </tr>
+                    `;
+
+                }).join("")}
+
+                <tr style="background:#FFF3EB;font-weight:bold">
+
+                    <td colspan="6" style="text-align:right">
+                        TOTALES
+                    </td>
+
+                    <td style="text-align:right">
+                        $${totalValor.toLocaleString('es-CO')}
+                    </td>
+
+                    <td style="text-align:right">
+                        $${totalTarifa.toLocaleString('es-CO')}
+                    </td>
+
+                    <td style="text-align:right;color:#E86A33">
+                        $${totalGeneral.toLocaleString('es-CO')}
+                    </td>
+
+                    <td colspan="2"></td>
+
+                </tr>
+
+            </tbody>
+
+        </table>
+
+    </div>
+    `;
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        /*====================================================
+    =            FILTROS ADMINISTRADOR V2                =
+    ====================================================*/
+
+function inicializarFiltrosEnvios(envios){
+
+      llenarClientes(envios);
+      llenarTransportadores(envios);
+      actualizarResumen(envios);
+      document.getElementById("buscarGuia").addEventListener("keyup",aplicarFiltros);
+      document.getElementById("filtroCliente").addEventListener("change",aplicarFiltros);
+      document.getElementById("filtroTransportador").addEventListener("change",aplicarFiltros);
+      document.getElementById("filtroEstado").addEventListener("change",aplicarFiltros);
+      document.getElementById("fechaInicio").addEventListener("change",aplicarFiltros);
+      document.getElementById("fechaFin").addEventListener("change",aplicarFiltros);
+  }
+
+  function llenarClientes(envios){
+
+      const select=document.getElementById("filtroCliente");
+      [...new Set(envios.map(e=>e.cliente_nombre).filter(Boolean))]
+      .sort()
+      .forEach(c=>{
+          select.innerHTML+=`<option>${c}</option>`;
+      });
+  }
+
+  function llenarTransportadores(envios){
+      const select=document.getElementById("filtroTransportador");
+      [...new Set(envios.map(e=>e.transportador_nombre).filter(Boolean))]
+      .sort()
+      .forEach(t=>{
+          select.innerHTML+=`<option>${t}</option>`;
+      });
+  }
+
+  function aplicarFiltros(){
+      const codigo=document.getElementById("buscarGuia").value.toLowerCase();
+      const cliente=document.getElementById("filtroCliente").value;
+      const estado=document.getElementById("filtroEstado").value;
+      const transportador=document.getElementById("filtroTransportador").value;
+      const desde=document.getElementById("fechaInicio").value;
+      const hasta=document.getElementById("fechaFin").value;
+      enviosFiltrados=enviosOriginales.filter(e=>{
+          if(codigo && !e.codigo_seguimiento.toLowerCase().includes(codigo))
+              return false;
+          if(cliente && e.cliente_nombre!==cliente)
+              return false;
+          if(transportador && e.transportador_nombre!==transportador)
+              return false;
+          if(estado && e.estado!==estado)
+              return false;
+          if(desde){
+              if(new Date(e.creado_en)<new Date(desde))
+                  return false;
+          }
+          if(hasta){
+              if(new Date(e.creado_en)>new Date(hasta+"T23:59:59"))
+                  return false;
+          }
+          return true;
+      });
+      
+      const tabla=document.querySelector(".table-wrap");
+      tabla.style.opacity=".35";
+      setTimeout(()=>{
+      tabla.innerHTML=renderTablaEnvios(enviosFiltrados,"admin");
+      tabla.style.opacity="1";
+      },150);
+      actualizarResumen(enviosFiltrados);
+  }
+
+function limpiarFiltros(){
+    document.getElementById("buscarGuia").value="";
+    document.getElementById("filtroCliente").value="";
+    document.getElementById("filtroTransportador").value="";
+    document.getElementById("filtroEstado").value="";
+    document.getElementById("fechaInicio").value="";
+    document.getElementById("fechaFin").value="";
+    enviosFiltrados=[...enviosOriginales];
+    document.querySelector(".table-wrap").innerHTML=
+        renderTablaEnvios(enviosFiltrados,"admin");
+    actualizarResumen(enviosFiltrados);
+}
+
+function actualizarResumen(lista){
+    let valor=0;
+    let tarifa=0;
+    const clientes=new Set();
+    const ciudades=new Set();
+    const transportadores=new Set();
+    lista.forEach(e=>{
+        valor+=Number(e.valor_comercial||0);
+        tarifa+=Number(e.tarifa||10000);
+        if(e.cliente_nombre)
+            clientes.add(e.cliente_nombre);
+        if(e.ciudad_entrega)
+            ciudades.add(e.ciudad_entrega);
+        if(e.transportador_nombre)
+            transportadores.add(e.transportador_nombre);
+    });
+    const total=valor+tarifa;
+    document.getElementById("contadorEnvios").innerHTML=`
+        Mostrando
+        <strong>${lista.length}</strong>
+        de
+        <strong>${enviosOriginales.length}</strong>
+        envíos
+    `;
+    document.getElementById("resumenFinanciero").innerHTML=`
+    <div style="
+        display:grid;
+        grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+        gap:15px;
+    ">
+        ${crearCardResumen("📦 Envíos",lista.length)}
+        ${crearCardResumen("👤 Clientes",clientes.size)}
+        ${crearCardResumen("🚚 Transportadores",transportadores.size)}
+        ${crearCardResumen("🏙️ Ciudades",ciudades.size)}
+        ${crearCardResumen("💰 Valor Comercial","$"+valor.toLocaleString("es-CO"))}
+        ${crearCardResumen("🚛 Tarifas","$"+tarifa.toLocaleString("es-CO"))}
+        ${crearCardResumen("🧾 Total","$"+total.toLocaleString("es-CO"))}
+    `;
+}
+
+function crearCardResumen(titulo,valor){
+return`
+<div style="
+background:#fff;
+border-radius:14px;
+padding:18px;
+border:1px solid #EAEAEA;
+box-shadow:0 4px 12px rgba(0,0,0,.06);
+transition:.25s;
+">
+<div style="
+font-size:13px;
+color:#888;
+margin-bottom:8px;
+font-weight:600;
+">
+${titulo}
+</div>
+<div style="
+font-size:28px;
+font-weight:700;
+color:#E86A33;
+">
+${valor}
+</div>
+</div>
+`;
+}
+
 
 /* ════════════════════════════════════════════════════════════
    DETALLE / TRAZABILIDAD
@@ -998,29 +1537,26 @@ async function crearUsuario() {
 /* ════════════════════════════════════════════════════════════
    EXPORT EXCEL
 ════════════════════════════════════════════════════════════ */
-async function doExport() {
-  showToast('⏳ Generando archivo Excel…');
-  try {
-    const r = await fetch(`${API}/envios/export/excel`, { headers: authHeaders() });
-    if (!r.ok) throw new Error('Error al generar Excel');
-    const blob = await r.blob();
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href     = url;
-    a.download = `logistica_${new Date().toISOString().slice(0,10)}.xlsx`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast('✅ Excel descargado correctamente');
-    // Volver al dashboard
-    navigate('dashboard', document.querySelector('.nav-item[data-page="dashboard"]'));
-  } catch (e) { showToast('❌ ' + e.message); }
-}
-
-
 async function exportarExcelFiltrado(origen) {
   showToast('⏳ Generando archivo Excel…');
   try {
-    let url = `${API}/envios/export/excel`;
+    let url=`${API}/envios/export/excel`;
+
+    const cliente=document.getElementById("filtroCliente")?.value;
+    const estado=document.getElementById("filtroEstado")?.value;
+    const transportador=document.getElementById("filtroTransportador")?.value;
+    const desde=document.getElementById("fechaInicio")?.value;
+    const hasta=document.getElementById("fechaFin")?.value;
+    const guia=document.getElementById("buscarGuia")?.value;
+    const parametros=new URLSearchParams();
+    if(cliente) parametros.append("cliente",cliente);
+    if(estado) parametros.append("estado",estado);
+    if(transportador) parametros.append("transportador",transportador);
+    if(desde) parametros.append("desde",desde);
+    if(hasta) parametros.append("hasta",hasta);
+    if(guia) parametros.append("codigo",guia);
+    if(parametros.toString())
+        url+="?"+parametros.toString();
 
     // Si viene del dashboard, usa el rango de fechas actualmente filtrado
     if (origen === 'dashboard') {
@@ -1029,7 +1565,7 @@ async function exportarExcelFiltrado(origen) {
       if (desde && hasta) url += `?desde=${desde}&hasta=${hasta}`;
     }
 
-    const r = await fetch(url, { headers: authHeaders() });
+    const r = await fetch(url, { headers: authHeaders(), cache: 'no-store' });
     if (!r.ok) throw new Error('Error al generar Excel');
     const blob = await r.blob();
     const a = document.createElement('a');
