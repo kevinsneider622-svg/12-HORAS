@@ -19,7 +19,7 @@ router.get('/', auth, requireRole('admin','transportador'), async (req, res, nex
 });
 
 /* ── GET /api/usuarios/transportadores ──────────────────────── */
-router.get('/transportadores', auth, requireRole('admin'), async (req, res, next) => {
+router.get('/transportadores', auth, requireRole('admin','asignador'), async (req, res, next) => {
   try {
     const [rows] = await db.query(
       "SELECT id, nombre, email FROM usuarios WHERE rol='transportador' AND activo=1 ORDER BY nombre"
@@ -34,7 +34,7 @@ router.post('/', auth, requireRole('admin'), async (req, res, next) => {
     const { nombre, email, password, rol } = req.body;
     if (!nombre || !email || !password || !rol)
       return res.status(400).json({ error: 'Todos los campos requeridos' });
-    if (!['cliente','admin','transportador'].includes(rol))
+    if (!['cliente','admin','transportador','asignador'].includes(rol))
       return res.status(400).json({ error: 'Rol inválido' });
 
     const hash = await bcrypt.hash(password, 10);

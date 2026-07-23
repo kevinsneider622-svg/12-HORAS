@@ -175,6 +175,7 @@
         <select id="uRol">
           <option value="cliente">Cliente</option>
           <option value="transportador">Transportador</option>
+          <option value="asignador">Asignador (sin ver valores)</option>
           <option value="admin">Administrador</option>
         </select>
       </div>
@@ -304,7 +305,7 @@ async function initApp() {
   showView('appView');
   document.getElementById('headerUserName').textContent = currentUser.nombre;
   const rt = document.getElementById('headerRoleTag');
-  rt.textContent  = { cliente:'Cliente', admin:'Administrador', transportador:'Transportador' }[currentUser.rol];
+  rt.textContent  = { cliente:'Cliente', admin:'Administrador', transportador:'Transportador', asignador:'Asignador' }[currentUser.rol];
   rt.className    = `role-tag ${currentUser.rol}`;
 
   buildSidebar();
@@ -350,6 +351,10 @@ const MENU_CONFIG = {
   ],
   transportador: [
     { icon:'📬', label:'Mis asignados',     page:'bandeja' },
+    { icon:'🔍', label:'Rastrear paquete',  page:'rastrear' },
+  ],
+  asignador: [
+    { icon:'📬', label:'Asignar envíos',    page:'bandeja' },
     { icon:'🔍', label:'Rastrear paquete',  page:'rastrear' },
   ]
 };
@@ -541,7 +546,7 @@ async function renderBandeja() {
     enviosOriginales=await apiGet('/envios');
     enviosFiltrados=[...enviosOriginales];
     const envios=enviosFiltrados;
-    const titulo = { cliente:'Mis envíos', admin:'Todos los envíos', transportador:'Mis asignados' }[currentUser.rol];
+    const titulo = { cliente:'Mis envíos', admin:'Todos los envíos', transportador:'Mis asignados', asignador:'Asignar envíos' }[currentUser.rol];
 
     setMain(`
       <div class="page-title">📬 ${titulo}</div>
@@ -630,7 +635,9 @@ async function renderBandeja() {
                     ? (
                         currentUser.rol==="admin"
                             ? renderTablaEnviosAdmin(envios)
-                            : renderTablaEnvios(envios,currentUser.rol)
+                            : currentUser.rol==="asignador"
+                                ? renderTablaEnviosAsignador(envios)
+                                : renderTablaEnvios(envios,currentUser.rol)
                       )
                     : '<div class="empty"><div class="empty-icon">📭</div>No existen envíos</div>'
             }
@@ -938,6 +945,55 @@ function renderTablaEnviosAdmin(envios){
                     <td colspan="2"></td>
 
                 </tr>
+
+            </tbody>
+
+        </table>
+
+    </div>
+    `;
+
+}
+
+function renderTablaEnviosAsignador(envios){
+
+    return `
+    <div style="max-height:650px;overflow:auto;">
+        <table id="tablaEnviosAsignador">
+
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Cliente</th>
+                    <th>Destinatario</th>
+                    <th>Ciudad</th>
+                    <th>Estado</th>
+                    <th>Transportador</th>
+                    <th>Fecha</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+                ${envios.map(e=>`
+                    <tr>
+                        <td><code>${e.codigo_seguimiento}</code></td>
+                        <td>${e.cliente_nombre||'-'}</td>
+                        <td>${e.destinatario_nombre}</td>
+                        <td>${e.ciudad_entrega}</td>
+                        <td>${badgeEstado(e.estado)}</td>
+                        <td>${e.transportador_nombre||'<span style="color:#999">Sin asignar</span>'}</td>
+                        <td>${formatDate(e.creado_en)}</td>
+                        <td>
+                            <button
+                                class="btn btn-sm btn-secondary"
+                                onclick="abrirModalAsignar(${e.id})">
+                                Asignar
+                            </button>
+                        </td>
+                    </tr>
+                `).join("")}
 
             </tbody>
 

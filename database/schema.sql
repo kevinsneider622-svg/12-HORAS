@@ -17,7 +17,7 @@ CREATE TABLE usuarios (
   nombre        VARCHAR(100)  NOT NULL,
   email         VARCHAR(150)  NOT NULL UNIQUE,
   password_hash VARCHAR(255)  NOT NULL,
-  rol           ENUM('cliente','admin','transportador') NOT NULL DEFAULT 'cliente',
+  rol           ENUM('cliente','admin','transportador','asignador') NOT NULL DEFAULT 'cliente',
   activo        TINYINT(1)    NOT NULL DEFAULT 1,
   creado_en     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;

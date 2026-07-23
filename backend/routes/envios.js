@@ -46,6 +46,19 @@ router.get('/', auth, async (req, res, next) => {
                AND (e.asignado_en IS NULL OR e.asignado_en >= NOW() - INTERVAL 24 HOUR)
              ORDER BY e.creado_en DESC`;
       params = [id];
+    } else if (rol === 'asignador') {
+      // Ve todos los envíos igual que admin, pero SIN columnas monetarias
+      sql = `SELECT
+               e.id, e.codigo_seguimiento, e.destinatario_nombre, e.destinatario_tel,
+               e.direccion_entrega, e.ciudad_entrega, e.descripcion_paquete, e.peso_kg,
+               e.estado, e.cliente_id, e.transportador_id,
+               e.creado_en, e.actualizado_en, e.asignado_en,
+               uc.nombre AS cliente_nombre,
+               ut.nombre AS transportador_nombre
+             FROM envios e
+             JOIN usuarios uc ON e.cliente_id = uc.id
+             LEFT JOIN usuarios ut ON e.transportador_id = ut.id
+             ORDER BY e.creado_en DESC`;
     } else {
       // admin: todos, sin filtro de tiempo
       sql = `SELECT e.*,
@@ -81,6 +94,12 @@ router.get('/:id', auth, async (req, res, next) => {
       return res.status(403).json({ error: 'Sin acceso' });
     if (req.user.rol === 'transportador' && envio.transportador_id !== req.user.id)
       return res.status(403).json({ error: 'Sin acceso' });
+
+    // El rol asignador puede ver el envío para asignarlo, pero sin datos monetarios
+    if (req.user.rol === 'asignador') {
+      delete envio.valor_comercial;
+      delete envio.tarifa;
+    }
 
     const [historial] = await db.query(
       `SELECT h.*, u.nombre AS actor_nombre, u.rol AS actor_rol
@@ -217,7 +236,7 @@ router.patch('/:id/estado', auth, requireRole('admin','transportador'), async (r
 
 /* ── PATCH /api/envios/:id/asignar ─────────────────────────── */
 // Al asignar transportador, el envío pasa automáticamente a "En Tránsito"
-router.patch('/:id/asignar', auth, requireRole('admin'), async (req, res, next) => {
+router.patch('/:id/asignar', auth, requireRole('admin','asignador'), async (req, res, next) => {
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();

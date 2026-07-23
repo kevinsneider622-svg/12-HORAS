@@ -132,6 +132,7 @@ header {
 .role-tag.cliente       { background: #D1FAE5; color: #065F46; }
 .role-tag.admin         { background: #DBEAFE; color: #1E40AF; }
 .role-tag.transportador { background: #FEF3C7; color: #92400E; }
+.role-tag.asignador     { background: #EDE9FE; color: #5B21B6; }
 
 .notif-btn {
   position: relative;
@@ -601,7 +602,13 @@ tr:hover td { background: var(--bg); }
     border-collapse:collapse;
 }
 
-#tablaEnviosAdmin thead th{
+#tablaEnviosAsignador{
+    width:100%;
+    border-collapse:collapse;
+}
+
+#tablaEnviosAdmin thead th,
+#tablaEnviosAsignador thead th{
     position:sticky;
     top:0;
     z-index:5;
@@ -610,11 +617,13 @@ tr:hover td { background: var(--bg); }
     box-shadow:0 2px 4px rgba(0,0,0,.08);
 }
 
-#tablaEnviosAdmin tbody tr:nth-child(even){
+#tablaEnviosAdmin tbody tr:nth-child(even),
+#tablaEnviosAsignador tbody tr:nth-child(even){
     background:#fafafa;
 }
 
-#tablaEnviosAdmin tbody tr:hover{
+#tablaEnviosAdmin tbody tr:hover,
+#tablaEnviosAsignador tbody tr:hover{
     background:#FFF4EF;
     transition:.2s;
 }
