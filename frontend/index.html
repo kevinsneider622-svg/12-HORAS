@@ -837,9 +837,9 @@ function renderTablaEnviosAdmin(envios){
                     <th>Ciudad</th>
                     <th>Transportador</th>
                     <th>Estado</th>
-                    <th style="text-align:right">Valor Comercial</th>
-                    <th style="text-align:right">Tarifa</th>
-                    <th style="text-align:right">Total</th>
+                    <th>Valor Comercial</th>
+                    <th>Tarifa</th>
+                    <th>Total</th>
                     <th>Fecha</th>
                     <th>Acciones</th>
                 </tr>
@@ -877,15 +877,15 @@ function renderTablaEnviosAdmin(envios){
 
                         <td>${badgeEstado(e.estado)}</td>
 
-                        <td style="text-align:right">
+                        <td>
                             $${valor.toLocaleString('es-CO')}
                         </td>
 
-                        <td style="text-align:right">
+                        <td>
                             $${tarifa.toLocaleString('es-CO')}
                         </td>
 
-                        <td style="text-align:right;font-weight:bold;color:#E86A33">
+                        <td style="font-weight:bold;color:#E86A33">
                             $${total.toLocaleString('es-CO')}
                         </td>
 
@@ -924,15 +924,15 @@ function renderTablaEnviosAdmin(envios){
                         TOTALES
                     </td>
 
-                    <td style="text-align:right">
+                    <td>
                         $${totalValor.toLocaleString('es-CO')}
                     </td>
 
-                    <td style="text-align:right">
+                    <td>
                         $${totalTarifa.toLocaleString('es-CO')}
                     </td>
 
-                    <td style="text-align:right;color:#E86A33">
+                    <td style="color:#E86A33">
                         $${totalGeneral.toLocaleString('es-CO')}
                     </td>
 
