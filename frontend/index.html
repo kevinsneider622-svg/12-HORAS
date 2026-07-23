@@ -707,17 +707,16 @@ function renderTablaEnvios(envios, rol){
                     <td>
                         ${badgeEstado(e.estado)}
                     </td>
-                    <td style="text-align:right">
+                    <td>
                         $${valor.toLocaleString('es-CO')}
                     </td>
-                    <td style="text-align:right">
+                    <td>
                         $${tarifa.toLocaleString('es-CO')}
                     </td>
                     <td
                         style="
                         font-weight:bold;
                         color:#E86A33;
-                        text-align:right;
                         "
                     >                 
                         $${total.toLocaleString('es-CO')}
@@ -746,16 +745,16 @@ function renderTablaEnvios(envios, rol){
                 `;
             }).join("")}
             <tr style="background:#FFF3EB;font-weight:bold">
-            <td colspan="6" style="text-align:right">
+            <td colspan="6" style="text-align:right;padding-right:2rem;">
                 TOTALES
             </td>
-            <td style="text-align:right">
+            <td>
                 $${totalValor.toLocaleString('es-CO')}
             </td>
-            <td style="text-align:right">
+            <td>
                 $${totalTarifa.toLocaleString('es-CO')}
             </td>
-            <td style="text-align:right;color:#E86A33">
+            <td style="color:#E86A33">
                 $${totalGeneral.toLocaleString('es-CO')}
             </td>
             <td colspan="2"></td>
@@ -920,7 +919,7 @@ function renderTablaEnviosAdmin(envios){
 
                 <tr style="background:#FFF3EB;font-weight:bold">
 
-                    <td colspan="6" style="text-align:right">
+                    <td colspan="6" style="text-align:right;padding-right:2rem;">
                         TOTALES
                     </td>
 
