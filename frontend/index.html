@@ -1034,7 +1034,7 @@ function inicializarFiltrosEnvios(envios){
       const tabla=document.querySelector(".table-wrap");
       tabla.style.opacity=".35";
       setTimeout(()=>{
-      tabla.innerHTML=renderTablaEnvios(enviosFiltrados,"admin");
+      tabla.innerHTML=renderTablaEnviosAdmin(enviosFiltrados);
       tabla.style.opacity="1";
       },150);
       actualizarResumen(enviosFiltrados);
@@ -1049,7 +1049,7 @@ function limpiarFiltros(){
     document.getElementById("fechaFin").value="";
     enviosFiltrados=[...enviosOriginales];
     document.querySelector(".table-wrap").innerHTML=
-        renderTablaEnvios(enviosFiltrados,"admin");
+        renderTablaEnviosAdmin(enviosFiltrados);
     actualizarResumen(enviosFiltrados);
 }
 

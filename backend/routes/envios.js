@@ -325,9 +325,6 @@ router.get('/export/excel', auth, requireRole('admin'), async (req, res, next) =
       ? `WHERE ${where.join(" AND ")}`
       : "";
 
-    console.log('🔎 [EXPORT EXCEL] req.query:', req.query);
-    console.log('🔎 [EXPORT EXCEL] filtroSQL:', filtroSQL, '| params:', params);
-
     const [envios] = await db.query(
       `SELECT
           e.codigo_seguimiento AS 'Código',
@@ -353,11 +350,28 @@ router.get('/export/excel', auth, requireRole('admin'), async (req, res, next) =
       params
     );
 
-    console.log('🔎 [EXPORT EXCEL] filas devueltas:', envios.length);
+    // Asegura que los valores monetarios sean números reales (no texto),
+    // para que Excel los reconozca como moneda y no marque error de "número guardado como texto".
+    const enviosParaExcel = envios.map(e => ({
+      ...e,
+      'Valor Comercial (COP)':   Number(e['Valor Comercial (COP)'] || 0),
+      'Tarifa Transporte (COP)': Number(e['Tarifa Transporte (COP)'] || 0),
+      'Total (COP)':             Number(e['Total (COP)'] || 0),
+    }));
 
     const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(envios);
+    const ws = XLSX.utils.json_to_sheet(enviosParaExcel);
     XLSX.utils.book_append_sheet(wb, ws, 'Envíos');
+
+    // Formato de moneda (COP) con separador de miles y sin decimales, para las 3 columnas monetarias.
+    const formatoMoneda = '"$" #,##0';
+    const columnasMoneda = ['I', 'J', 'K']; // Valor Comercial, Tarifa Transporte, Total
+    columnasMoneda.forEach(col => {
+      for (let fila = 2; fila <= enviosParaExcel.length + 1; fila++) {
+        const celda = ws[`${col}${fila}`];
+        if (celda) celda.z = formatoMoneda;
+      }
+    });
 
     const totalTarifas = envios.reduce(
         (s, e) => s + Number(e['Tarifa Transporte (COP)'] || 0),
