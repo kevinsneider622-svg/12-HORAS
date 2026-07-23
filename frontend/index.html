@@ -175,7 +175,7 @@
         <select id="uRol">
           <option value="cliente">Cliente</option>
           <option value="transportador">Transportador</option>
-          <option value="asignador">Asignador (sin ver valores)</option>
+          <option value="asignador">Asignador</option>
           <option value="admin">Administrador</option>
         </select>
       </div>
@@ -1329,32 +1329,32 @@ function renderPkgForm(n) {
       <div class="form-grid" style="margin-top:.5rem">
         <div class="form-field">
           <label>Nombre del destinatario *</label>
-          <input type="text" id="pkg${n}_nombre" placeholder="María García">
+          <input type="text" id="pkg${n}_nombre" placeholder="">
         </div>
         <div class="form-field">
           <label>Teléfono *</label>
-          <input type="tel" id="pkg${n}_tel" placeholder="3001234567">
+          <input type="tel" id="pkg${n}_tel" placeholder="">
         </div>
         <div class="form-field full">
           <label>Dirección de entrega *</label>
-          <input type="text" id="pkg${n}_dir" placeholder="Cra 7 # 45-12 Apto 301">
+          <input type="text" id="pkg${n}_dir" placeholder="">
         </div>
         <div class="form-field">
           <label>Ciudad *</label>
-          <input type="text" id="pkg${n}_ciudad" placeholder="Bogotá">
+          <input type="text" id="pkg${n}_ciudad" placeholder="">
         </div>
         <div class="form-field">
           <label>Peso aprox. (kg)</label>
-          <input type="number" step=".1" id="pkg${n}_peso" placeholder="1.5">
+          <input type="number" step=".1" id="pkg${n}_peso" placeholder="">
         </div>
         <div class="form-field">
           <label>Valor comercial del paquete (COP)</label>
           <input type="number" step="1" min="0" id="pkg${n}_valor"
-                 placeholder="0" oninput="recalcularTotal()">
+                 placeholder="" oninput="recalcularTotal()">
         </div>
         <div class="form-field full">
           <label>Descripción del paquete</label>
-          <textarea id="pkg${n}_desc" rows="2" placeholder="Ropa, calzado, electrónico…"></textarea>
+          <textarea id="pkg${n}_desc" rows="2" placeholder=""></textarea>
         </div>
         <div class="form-field full">
           <div style="background:var(--brand-soft);border:1px solid #F3C9B8;border-radius:var(--radius);padding:.65rem 1rem;font-size:.875rem">
